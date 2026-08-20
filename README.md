@@ -35,7 +35,8 @@ ______________________________________________________________________
 ### Installation & Environment
 
 ```bash
-cd /home/jaipkapoor99/Code/chess-ds
+# Clone and enter directory
+cd chess-ds
 
 # Synchronize virtual environment with uv
 uv sync

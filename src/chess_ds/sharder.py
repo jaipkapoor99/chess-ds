@@ -9,8 +9,9 @@ import pyarrow.parquet as pq
 from tqdm import tqdm
 
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
-CSV_PATH = Path("/home/jaipkapoor99/Desktop/lichess_puzzle_transformed.csv")
-SHARDS_DIR = ROOT_DIR / "data" / "shards"
+DATA_DIR = ROOT_DIR / "data"
+SHARDS_DIR = DATA_DIR / "shards"
+CSV_PATH = DATA_DIR / "lichess_puzzle_transformed.csv"
 
 
 def build_puzzle_shards(

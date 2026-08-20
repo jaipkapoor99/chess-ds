@@ -1,6 +1,6 @@
 # Terminal Commands & CLI Reference
 
-This document provides clean, executable terminal commands for operating the `chess-ds` platform.
+This document provides clean, repository-relative terminal commands for operating the `chess-ds` platform.
 
 ______________________________________________________________________
 
@@ -9,7 +9,6 @@ ______________________________________________________________________
 ### Synchronize virtual environment with uv
 
 ```bash
-cd /home/jaipkapoor99/Code/chess-ds
 uv sync
 ```
 
@@ -102,29 +101,44 @@ ______________________________________________________________________
 ### Run 10-game match: Lc0 vs Stockfish 18
 
 ```bash
-/home/jaipkapoor99/Code/chess-ds/engines/cutechess-cli \
-  -engine name=Lc0 cmd=/home/jaipkapoor99/Code/chess-ds/engines/lc0 dir=/home/jaipkapoor99/Code/chess-ds/engines option.WeightsFile=/home/jaipkapoor99/Code/chess-ds/weights/BT4-332.pb option.Threads=2 option.SyzygyPath=/home/jaipkapoor99/Code/chess-ds/syzygy \
-  -engine name=Stockfish18 cmd=/home/jaipkapoor99/Code/chess-ds/engines/stockfish-ubuntu-x86-64-avx512icl dir=/home/jaipkapoor99/Code/chess-ds/engines option.Threads=8 option.Hash=8192 option.SyzygyPath=/home/jaipkapoor99/Code/chess-ds/syzygy \
+./engines/cutechess-cli \
+  -engine name=Lc0 cmd=./engines/lc0 dir=./engines option.WeightsFile=./weights/BT4-332.pb option.Threads=2 option.SyzygyPath=./syzygy \
+  -engine name=Stockfish18 cmd=./engines/stockfish-ubuntu-x86-64-avx512icl dir=./engines option.Threads=8 option.Hash=8192 option.SyzygyPath=./syzygy \
   -each proto=uci tc=10+0.2 \
   -rounds 10 \
   -repeat \
   -concurrency 1 \
   -draw movenumber=40 movecount=8 score=10 \
   -resign movecount=4 score=700 \
-  -pgnout /home/jaipkapoor99/Desktop/Chess_PGNs/match_lc0_vs_sf.pgn
+  -pgnout ./data/results/match_lc0_vs_sf.pgn
 ```
 
 ### Run 10-game match: Lc0 vs Reckless 0.9.0
 
+./engines/cutechess-cli \
+-engine name=Lc0 cmd=./engines/lc0 dir=./engines option.WeightsFile=./weights/BT4-332.pb option.Threads=2 option.SyzygyPath=./syzygy \
+-engine name=Stockfish18 cmd=./engines/stockfish-ubuntu-x86-64-avx512icl dir=./engines option.Threads=8 option.Hash=8192 option.SyzygyPath=./syzygy \
+-each proto=uci tc=10+0.2 \
+-rounds 10 \
+-repeat \
+-concurrency 1 \
+-draw movenumber=40 movecount=8 score=10 \
+-resign movecount=4 score=700 \
+-pgnout ./data/results/match_lc0_vs_sf.pgn
+
+````
+
+### Run 10-game match: Lc0 vs Reckless 0.9.0
+
 ```bash
-/home/jaipkapoor99/Code/chess-ds/engines/cutechess-cli \
-  -engine name=Lc0 cmd=/home/jaipkapoor99/Code/chess-ds/engines/lc0 dir=/home/jaipkapoor99/Code/chess-ds/engines option.WeightsFile=/home/jaipkapoor99/Code/chess-ds/weights/BT4-332.pb option.Threads=2 option.SyzygyPath=/home/jaipkapoor99/Code/chess-ds/syzygy \
-  -engine name=Reckless cmd=/home/jaipkapoor99/Code/chess-ds/engines/reckless-linux-avx512 dir=/home/jaipkapoor99/Code/chess-ds/engines option.Threads=8 option.Hash=8192 option.SyzygyPath=/home/jaipkapoor99/Code/chess-ds/syzygy \
+./engines/cutechess-cli \
+  -engine name=Lc0 cmd=./engines/lc0 dir=./engines option.WeightsFile=./weights/BT4-332.pb option.Threads=2 option.SyzygyPath=./syzygy \
+  -engine name=Reckless cmd=./engines/reckless-linux-avx512 dir=./engines option.Threads=8 option.Hash=8192 option.SyzygyPath=./syzygy \
   -each proto=uci tc=10+0.2 \
   -rounds 10 \
   -repeat \
   -concurrency 1 \
   -draw movenumber=40 movecount=8 score=10 \
   -resign movecount=4 score=700 \
-  -pgnout /home/jaipkapoor99/Desktop/Chess_PGNs/match_lc0_vs_reckless.pgn
-```
+  -pgnout ./data/results/match_lc0_vs_reckless.pgn
+````
