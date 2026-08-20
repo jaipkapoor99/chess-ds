@@ -3,7 +3,7 @@
 import argparse
 
 from chess_ds.evaluator import ResumableBenchmarkRunner
-from chess_ds.sharder import SHARDS_DIR, build_puzzle_shards
+from chess_ds.fetcher import SHARDS_DIR, LichessFetcher
 
 
 def main():
@@ -12,18 +12,21 @@ def main():
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    # Shard command
-    shard_parser = subparsers.add_parser(
-        "shard", help="Extract and shard ultra-hard puzzles into Parquet format"
+    # Fetch/Stream command
+    fetch_parser = subparsers.add_parser(
+        "fetch", help="Stream and shard ultra-hard puzzles live from official Lichess database"
     )
-    shard_parser.add_argument(
+    fetch_parser.add_argument(
         "--min-rating", type=int, default=2500, help="Minimum puzzle rating (default: 2500)"
     )
-    shard_parser.add_argument(
-        "--total", type=int, default=5000, help="Total target puzzle count (default: 5000)"
+    fetch_parser.add_argument(
+        "--total", type=int, default=5000, help="Total puzzles to stream (default: 5000)"
     )
-    shard_parser.add_argument(
+    fetch_parser.add_argument(
         "--shard-size", type=int, default=1000, help="Puzzles per Parquet shard (default: 1000)"
+    )
+    fetch_parser.add_argument(
+        "--popularity", type=int, default=80, help="Minimum popularity rating (default: 80)"
     )
 
     # Run command
@@ -45,16 +48,23 @@ def main():
 
     args = parser.parse_args()
 
-    if args.command == "shard":
-        build_puzzle_shards(
-            min_rating=args.min_rating, total_target=args.total, shard_size=args.shard_size
+    if args.command == "fetch":
+        LichessFetcher.build_live_parquet_shards(
+            min_rating=args.min_rating,
+            popularity_min=args.popularity,
+            total_puzzles=args.total,
+            shard_size=args.shard_size,
         )
 
     elif args.command == "eval":
-        shards = sorted(SHARDS_DIR.glob("shard_*.parquet"))
+        shards = sorted(SHARDS_DIR.glob("*.parquet"))
         if not shards:
-            print("No shards found. Generating shards first...")
-            shards = build_puzzle_shards(min_rating=2500, total_target=5000, shard_size=1000)
+            print(
+                "No shards found. Streaming fresh ultra-hard puzzles live from official Lichess repository..."
+            )
+            shards = LichessFetcher.build_live_parquet_shards(
+                min_rating=2500, total_puzzles=5000, shard_size=1000
+            )
 
         runner = ResumableBenchmarkRunner(movetime_ms=args.movetime)
         runner.run_suite(shards, engines=args.engines)
