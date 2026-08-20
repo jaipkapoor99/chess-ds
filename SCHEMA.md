@@ -2,7 +2,7 @@
 
 This document details the Strict Third Normal Form (3NF) relational architecture for the `chess-ds` analytical platform.
 
----
+______________________________________________________________________
 
 ## 1. 3NF Relational Architecture Map
 
@@ -26,24 +26,27 @@ This document details the Strict Third Normal Form (3NF) relational architecture
                          └──────────────────────┘
 ```
 
----
+______________________________________________________________________
 
 ## 2. Normal Form Compliance (1NF, 2NF, 3NF)
 
 1. **First Normal Form (1NF)**:
+
    - All attributes contain atomic values.
    - Repeating tactical themes are decomposed into the `puzzle_themes` bridge entity.
 
 1. **Second Normal Form (2NF)**:
+
    - In composite primary key tables (`puzzle_evaluations`, `puzzle_themes`, `game_moves`), every non-key column fully depends on the whole composite primary key.
 
 1. **Third Normal Form (3NF)**:
+
    - Transitive functional dependencies are eliminated:
      - `eco -> opening_name` is isolated into `openings`.
      - Player metadata is isolated into `players`.
      - Engine configurations are isolated into `engines`.
 
----
+______________________________________________________________________
 
 ## 3. Physical DDL Reference
 

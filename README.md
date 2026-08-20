@@ -58,19 +58,37 @@ uv sync
 ### Run Resumable Engine Benchmark
 
 ```bash
-# Evaluate all shards across Lc0, Reckless, and Stockfish (500ms per position)
-.venv/bin/python -m chess_ds.cli eval --movetime 500
+# Evaluate across engines with dynamic concurrency (automatically saved to database)
+uv run python -m chess_ds.cli eval --total 5000 --movetime 500 --concurrency 2
 ```
 
-### Display DuckDB Consolidated Analytics
+### Display Rich Terminal Telemetry Summary
 
 ```bash
-.venv/bin/python -m chess_ds.cli summary
+# Zero-copy DuckDB analytical rollup
+uv run python -m chess_ds.cli summary
+```
+
+### Manual CSV Extraction via DuckDB Query
+
+```bash
+# Export custom SQL query result over Parquet database directly to CSV
+uv run python -m chess_ds.cli export-csv \
+  --query "SELECT engine, COUNT(*) as n, ROUND(AVG(CASE WHEN is_correct THEN 1.0 ELSE 0.0 END)*100, 2) as acc_pct, ROUND(AVG(nps), 0) as avg_nps, ROUND(AVG(depth), 1) as avg_depth FROM read_parquet('data/results/*.parquet') GROUP BY engine" \
+  --output data/results/summary_export.csv
 ```
 
 ______________________________________________________________________
 
-## 3. Code Quality & Tooling
+## 3. Storage Architecture: Database-First & Manual Export
+
+- **Automatic Database Ingestion**: All engine evaluations, lookahead depths, and telemetry are stored automatically in compressed columnar **Apache Arrow / Parquet database tables** (`data/results/eval_*.parquet`) stamped with UTC ISO timestamps.
+- **Manual CSV Generation**: Raw CSV files are never dumped automatically. CSV files are generated strictly on-demand as the output of targeted SQL queries via `chess_ds.cli export-csv`.
+- **Live Observability**: Optional real-time experiment tracking with Weights & Biases via `--wandb`.
+
+______________________________________________________________________
+
+## 4. Code Quality & Tooling
 
 - **Python Linter & Formatter**: `ruff`
 - **Markdown Formatter**: `mdformat`

@@ -57,44 +57,57 @@ ______________________________________________________________________
 
 ## 3. Engine Benchmark & Evaluation
 
-### Evaluate all shards across all 3 engines (500ms search budget)
+> [!NOTE]
+> **Automatic Database Ingestion**: All benchmarks automatically persist evaluation telemetry directly to the Parquet/DuckDB database in `data/results/` with ISO timestamps and resume checkpoints.
+
+### Evaluate 5,000 positions with 2 concurrent engines (500ms search budget)
 
 ```bash
-uv run python -m chess_ds.cli eval --movetime 500
+uv run python -m chess_ds.cli eval --total 5000 --movetime 500 --concurrency 2
 ```
 
-### Evaluate with a specific engine (e.g. Lc0 on GPU)
+### Evaluate with live Weights & Biases telemetry streaming
 
 ```bash
-uv run python -m chess_ds.cli eval --engines "Lc0 v0.32.1" --movetime 500
+uv run python -m chess_ds.cli eval --total 5000 --movetime 500 --concurrency 2 --wandb --wandb-project chess-ds
 ```
 
-### Evaluate with CPU engines (Stockfish 18 & Reckless 0.9.0)
+### Evaluate specific engine subset sequentially
 
 ```bash
-uv run python -m chess_ds.cli eval --engines "Stockfish 18" "Reckless 0.9.0" --movetime 500
+uv run python -m chess_ds.cli eval --engines "Stockfish 18" "Lc0 v0.32.1" --total 1000 --movetime 500 --concurrency 1
 ```
 
-### Deep analysis benchmark (2.0s search budget)
+### Deep lookahead benchmark (2.0s search budget)
 
 ```bash
-uv run python -m chess_ds.cli eval --movetime 2000
+uv run python -m chess_ds.cli eval --total 500 --movetime 2000 --concurrency 1
 ```
 
 ______________________________________________________________________
 
-## 4. Analytics & Querying
+## 4. Analytics & Manual CSV Extraction
 
-### View DuckDB consolidated summary table
+### View Rich terminal telemetry summary (Zero-copy DuckDB rollup)
 
 ```bash
 uv run python -m chess_ds.cli summary
 ```
 
-### Interactive DuckDB analytical query shell
+### Manual CSV Extraction via DuckDB Query
 
 ```bash
-uv run python -c "import duckdb; print(duckdb.execute('SELECT engine, COUNT(*) as n, ROUND(AVG(CASE WHEN is_correct THEN 1.0 ELSE 0.0 END)*100, 2) as acc_pct, ROUND(AVG(nps), 0) as avg_nps, ROUND(AVG(depth), 1) as avg_depth FROM read_parquet(\"data/results/eval_*.parquet\") GROUP BY engine ORDER BY acc_pct DESC').pl())"
+uv run python -m chess_ds.cli export-csv \
+  --query "SELECT engine, COUNT(*) as n, SUM(CASE WHEN is_correct THEN 1 ELSE 0 END) as solved, ROUND(AVG(CASE WHEN is_correct THEN 1.0 ELSE 0.0 END)*100, 2) as acc_pct, ROUND(AVG(nps), 0) as avg_nps, ROUND(AVG(depth), 1) as avg_depth, ROUND(AVG(elapsed_seconds), 3) as avg_sec FROM read_parquet('data/results/*.parquet') GROUP BY engine ORDER BY acc_pct DESC" \
+  --output data/results/benchmark_summary.csv
+```
+
+### Export solved tactical positions to CSV
+
+```bash
+uv run python -m chess_ds.cli export-csv \
+  --query "SELECT puzzle_id, rating, engine, depth, nps, elapsed_seconds FROM read_parquet('data/results/*.parquet') WHERE is_correct = true" \
+  --output data/results/solved_tactics.csv
 ```
 
 ______________________________________________________________________
