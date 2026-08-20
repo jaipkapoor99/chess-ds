@@ -11,7 +11,15 @@ syzygy/
 *.rtbw
 *.rtbz
 
-data/
+# Raw dataset shards, checkpoints, and logs
+data/shards/
+data/checkpoints/
+data/*.csv
+data/*.pgn
 logs/
 *.log
 uv.lock
+
+# Keep data/results tracked for open science and zero-setup analytics
+!data/results/
+!data/results/**
