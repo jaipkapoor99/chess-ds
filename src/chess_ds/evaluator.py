@@ -6,6 +6,7 @@ Features:
 """
 
 import json
+import time
 from pathlib import Path
 
 import duckdb
@@ -26,8 +27,9 @@ CHECKPOINTS_DIR = DATA_DIR / "checkpoints"
 class ResumableBenchmarkRunner:
     """Orchestrates multi-engine evaluation across Parquet shards with state checkpointing."""
 
-    def __init__(self, movetime_ms: int = 500):
+    def __init__(self, movetime_ms: int = 500, run_id: str | None = None):
         self.movetime_ms = movetime_ms
+        self.timestamp = run_id or time.strftime("%Y%m%d_%H%M%S")
         RESULTS_DIR.mkdir(parents=True, exist_ok=True)
         CHECKPOINTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -37,7 +39,7 @@ class ResumableBenchmarkRunner:
 
     def get_result_shard_path(self, engine_name: str, shard_path: Path) -> Path:
         safe_name = engine_name.lower().replace(" ", "_").replace(".", "_")
-        return RESULTS_DIR / f"eval_{safe_name}_{shard_path.stem}.parquet"
+        return RESULTS_DIR / f"eval_{safe_name}_{shard_path.stem}_{self.timestamp}.parquet"
 
     def evaluate_shard_with_engine(
         self,
@@ -100,20 +102,20 @@ class ResumableBenchmarkRunner:
             if is_correct:
                 solved_count += 1
 
-            evaluated_rows.append(
-                {
-                    "puzzle_id": puzzle_id,
-                    "fen": fen,
-                    "solution": solution,
-                    "engine_move": bm,
-                    "is_correct": is_correct,
-                    "depth": depth,
-                    "nps": nps,
-                    "elapsed": elapsed,
-                    "rating": rating,
-                    "engine": engine_name,
-                }
-            )
+            record = {
+                "puzzle_id": puzzle_id,
+                "fen": fen,
+                "solution": solution,
+                "engine_move": bm,
+                "is_correct": is_correct,
+                "depth": depth,
+                "nps": nps,
+                "elapsed_seconds": elapsed,
+                "rating": rating,
+                "engine": engine_name,
+                "evaluated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            }
+            evaluated_rows.append(record)
 
             acc = (solved_count / (i + 1)) * 100.0
             pbar.set_postfix(
