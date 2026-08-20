@@ -52,9 +52,12 @@ class ResumableBenchmarkRunner:
         safe_name = engine_name.lower().replace(" ", "_").replace(".", "_")
         return CHECKPOINTS_DIR / f"{safe_name}_{shard_path.stem}.json"
 
-    def get_result_shard_path(self, engine_name: str, shard_path: Path) -> Path:
+    def get_result_shard_path(
+        self, engine_name: str, shard_path: Path, timestamp: str | None = None
+    ) -> Path:
         safe_name = engine_name.lower().replace(" ", "_").replace(".", "_")
-        return RESULTS_DIR / f"eval_{safe_name}_{shard_path.stem}_{self.timestamp}.parquet"
+        ts = timestamp or self.timestamp
+        return RESULTS_DIR / f"eval_{safe_name}_{shard_path.stem}_{ts}.parquet"
 
     def evaluate_shard_with_engine(
         self,
@@ -62,14 +65,17 @@ class ResumableBenchmarkRunner:
         shard_path: Path,
         max_puzzles: int | None = None,
     ) -> dict:
-        """Evaluates a parquet shard with state resumption, respecting exact max_puzzles limits."""
-        result_path = self.get_result_shard_path(engine_name, shard_path)
+        """Evaluates a parquet shard with state resumption, respecting datestamps and exact limits."""
+        safe_name = engine_name.lower().replace(" ", "_").replace(".", "_")
         ckpt_path = self.get_checkpoint_path(engine_name, shard_path)
 
-        # Check if entire shard was already evaluated
-        if result_path.exists():
-            print(f"[{engine_name}] Shard {shard_path.name} already fully evaluated. Skipping.")
-            return {"status": "already_done", "path": str(result_path)}
+        # Check if entire shard was already evaluated in a prior run
+        existing_results = sorted(RESULTS_DIR.glob(f"eval_{safe_name}_{shard_path.stem}_*.parquet"))
+        if existing_results and not ckpt_path.exists():
+            print(
+                f"[{engine_name}] Shard {shard_path.name} already fully evaluated in {existing_results[-1].name}. Skipping."
+            )
+            return {"status": "already_done", "path": str(existing_results[-1])}
 
         # Load input shard table
         df = pl.read_parquet(shard_path)
@@ -78,21 +84,26 @@ class ResumableBenchmarkRunner:
 
         total_puzzles = len(df)
 
-        # Check resume checkpoint
+        # Check resume checkpoint and recover original run datestamp
         evaluated_rows: list[dict] = []
         start_idx = 0
+        run_ts = self.timestamp
+
         if ckpt_path.exists():
             try:
                 with open(ckpt_path) as f:
                     ckpt = json.load(f)
                     start_idx = ckpt.get("last_index", 0)
                     evaluated_rows = ckpt.get("results", [])
+                    run_ts = ckpt.get("run_timestamp", self.timestamp)
                 print(
-                    f"[{engine_name}] ↺ Resuming {shard_path.name} from puzzle index {start_idx}/{total_puzzles}..."
+                    f"[{engine_name}] ↺ Resuming run ({run_ts}) on {shard_path.name} from puzzle index {start_idx}/{total_puzzles}..."
                 )
             except (json.JSONDecodeError, OSError, KeyError):
                 start_idx = 0
                 evaluated_rows = []
+
+        result_path = self.get_result_shard_path(engine_name, shard_path, timestamp=run_ts)
 
         session = EngineSession(engine_name)
         solved_count = sum(1 for r in evaluated_rows if r.get("is_correct", False))
@@ -122,6 +133,7 @@ class ResumableBenchmarkRunner:
                 solved_count += 1
 
             record = {
+                "run_id": run_ts,
                 "puzzle_id": puzzle_id,
                 "fen": fen,
                 "solution": solution,
@@ -159,15 +171,22 @@ class ResumableBenchmarkRunner:
                     rating=rating,
                 )
 
-            # Checkpoint every 50 positions
+            # Checkpoint every 50 positions with run datestamp preserved
             if (i + 1) % 50 == 0 or (i + 1) == total_puzzles:
                 with open(ckpt_path, "w") as f:
-                    json.dump({"last_index": i + 1, "results": evaluated_rows}, f)
+                    json.dump(
+                        {
+                            "run_timestamp": run_ts,
+                            "last_index": i + 1,
+                            "results": evaluated_rows,
+                        },
+                        f,
+                    )
 
         pbar.close()
         session.close()
 
-        # Write final Parquet result table
+        # Write final Parquet result table under original run datestamp
         res_table = pa.Table.from_pylist(evaluated_rows)
         pq.write_table(res_table, result_path, compression="zstd")
 
