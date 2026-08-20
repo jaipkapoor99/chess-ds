@@ -181,19 +181,35 @@ class ResumableBenchmarkRunner:
             "result_path": str(result_path),
         }
 
-    def run_suite(self, shards: list[Path], engines: list[str] | None = None) -> None:
-        """Executes full benchmark suite across shards and engines."""
+    def run_suite(
+        self,
+        shards: list[Path],
+        engines: list[str] | None = None,
+        concurrency: int = 1,
+    ) -> None:
+        """Executes benchmark suite across shards and engines with dynamic concurrency."""
         if engines is None:
-            engines = ["Lc0 v0.32.1", "Reckless 0.9.0", "Stockfish 18"]
+            engines = ["Lc0 v0.32.1", "Stockfish 18", "Reckless 0.9.0"]
 
         print("\n=================================================================")
         print("  STARTING MULTI-ENGINE RESUMABLE BENCHMARK SUITE")
-        print(f"  Total Shards: {len(shards)} | Engines: {len(engines)}")
+        print(
+            f"  Total Shards: {len(shards)} | Engines: {len(engines)} | Concurrency: {concurrency}"
+        )
         print("=================================================================\n")
 
-        for engine in engines:
+        from concurrent.futures import ThreadPoolExecutor
+
+        def run_for_engine(engine_name: str) -> None:
             for shard in shards:
-                self.evaluate_shard_with_engine(engine, shard)
+                self.evaluate_shard_with_engine(engine_name, shard)
+
+        if concurrency > 1:
+            with ThreadPoolExecutor(max_workers=concurrency) as executor:
+                list(executor.map(run_for_engine, engines))
+        else:
+            for engine in engines:
+                run_for_engine(engine)
 
         if self.wandb_logger:
             self.wandb_logger.finish()

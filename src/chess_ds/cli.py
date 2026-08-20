@@ -34,12 +34,21 @@ def main():
     # Run command
     run_parser = subparsers.add_parser("eval", help="Run resumable benchmark across shards")
     run_parser.add_argument(
+        "--total", type=int, default=5000, help="Total target positions to evaluate (default: 5000)"
+    )
+    run_parser.add_argument(
         "--movetime", type=int, default=500, help="Time per position in ms (default: 500)"
+    )
+    run_parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=1,
+        help="Number of engines to run concurrently (default: 1)",
     )
     run_parser.add_argument(
         "--engines",
         nargs="+",
-        default=["Lc0 v0.32.1", "Reckless 0.9.0", "Stockfish 18"],
+        default=["Lc0 v0.32.1", "Stockfish 18", "Reckless 0.9.0"],
         help="Engines to test",
     )
     run_parser.add_argument(
@@ -91,7 +100,8 @@ def main():
 
     elif args.command == "eval":
         TelemetryDashboard.print_banner(
-            "chess-ds Multi-Engine Benchmark", f"Search Budget: {args.movetime}ms/pos"
+            "chess-ds Multi-Engine Benchmark",
+            f"Search: {args.movetime}ms/pos | Concurrency: {args.concurrency}",
         )
         shards = sorted(SHARDS_DIR.glob("*.parquet"))
         if not shards:
@@ -99,15 +109,16 @@ def main():
                 "No shards found. Streaming fresh ultra-hard puzzles live from official Lichess repository..."
             )
             shards = LichessFetcher.build_live_parquet_shards(
-                min_rating=2500, total_puzzles=5000, shard_size=1000
+                min_rating=2500, total_puzzles=args.total, shard_size=1000
             )
 
+        active_shards = shards[: (args.total + 999) // 1000]
         runner = ResumableBenchmarkRunner(
             movetime_ms=args.movetime,
             use_wandb=args.wandb,
             wandb_project=args.wandb_project,
         )
-        runner.run_suite(shards, engines=args.engines)
+        runner.run_suite(active_shards, engines=args.engines, concurrency=args.concurrency)
 
     elif args.command == "summary":
         TelemetryDashboard.print_banner("chess-ds Analytics Dashboard", "Zero-Copy Parquet Rollup")
