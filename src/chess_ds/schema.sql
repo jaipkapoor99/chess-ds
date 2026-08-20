@@ -79,6 +79,8 @@ CREATE TABLE IF NOT EXISTS puzzle_evaluations (
     puzzle_id         VARCHAR NOT NULL REFERENCES puzzles(puzzle_id),
     engine_id         VARCHAR NOT NULL REFERENCES engines(engine_id),
     engine_move       VARCHAR(5) NOT NULL,
+    engine_move_san   VARCHAR(10),
+    solution_san      VARCHAR(10),
     is_correct        BOOLEAN NOT NULL,
     depth             INTEGER NOT NULL,
     nps               DOUBLE NOT NULL,

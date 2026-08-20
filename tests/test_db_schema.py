@@ -62,16 +62,16 @@ def test_3nf_relational_integrity():
 
     # Insert evaluations
     con.execute(
-        "INSERT INTO puzzle_evaluations VALUES ('run_test_01', 'puz_01', 'stockfish_18', 'e2e4', true, 28, 20000000.0, 0.45, CURRENT_TIMESTAMP);"
+        "INSERT INTO puzzle_evaluations VALUES ('run_test_01', 'puz_01', 'stockfish_18', 'e2e4', 'e4', 'e4', true, 28, 20000000.0, 0.45, CURRENT_TIMESTAMP);"
     )
     con.execute(
-        "INSERT INTO puzzle_evaluations VALUES ('run_test_01', 'puz_02', 'stockfish_18', 'e7e5', true, 30, 22000000.0, 0.48, CURRENT_TIMESTAMP);"
+        "INSERT INTO puzzle_evaluations VALUES ('run_test_01', 'puz_02', 'stockfish_18', 'e7e5', 'e5', 'e5', true, 30, 22000000.0, 0.48, CURRENT_TIMESTAMP);"
     )
     con.execute(
-        "INSERT INTO puzzle_evaluations VALUES ('run_test_01', 'puz_01', 'lc0_v0_32_1', 'e2e4', true, 20, 85000.0, 0.49, CURRENT_TIMESTAMP);"
+        "INSERT INTO puzzle_evaluations VALUES ('run_test_01', 'puz_01', 'lc0_v0_32_1', 'e2e4', 'e4', 'e4', true, 20, 85000.0, 0.49, CURRENT_TIMESTAMP);"
     )
     con.execute(
-        "INSERT INTO puzzle_evaluations VALUES ('run_test_01', 'puz_02', 'lc0_v0_32_1', 'c7c5', false, 19, 84000.0, 0.49, CURRENT_TIMESTAMP);"
+        "INSERT INTO puzzle_evaluations VALUES ('run_test_01', 'puz_02', 'lc0_v0_32_1', 'c7c5', 'c5', 'e5', false, 19, 84000.0, 0.49, CURRENT_TIMESTAMP);"
     )
 
     # Analytical Join Query
