@@ -7,7 +7,7 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 ENGINES_DIR = ROOT_DIR / "engines"
 WEIGHTS_DIR = ROOT_DIR / "weights"
-SYZYGY_DIR = Path("/home/jaipkapoor99/Code/Syzygy-Tablebase-Downloader/combined_syzygy_tables")
+SYZYGY_DIR = ROOT_DIR / "syzygy"
 
 
 ENGINE_DEFAULTS = {

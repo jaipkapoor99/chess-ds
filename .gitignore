@@ -1,18 +1,16 @@
-# Python virtual environments and caches
 .venv/
 __pycache__/
 *.pyc
 *.pyo
 .pytest_cache/
 .ruff_cache/
-uv.lock
-# Binary executables and large weights
-engines/
-weights/*.pb
-weights/*.onnx
-weights/*.bin
 
-# Data, checkpoints, and logs
+engines/
+weights/
+syzygy/
+*.rtbw
+*.rtbz
+
 data/
 logs/
 *.log
