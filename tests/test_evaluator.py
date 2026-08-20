@@ -40,18 +40,34 @@ def test_evaluator_database_persistence_and_manual_csv(tmp_path: Path):
     table = pa.Table.from_pylist(puzzles)
     pq.write_table(table, shard_file)
 
-    # Initialize runner with test run ID
+    # Initialize runner with unique isolated test run ID
+    import time
+
+    run_id = f"test_run_{int(time.time() * 1000)}"
     runner = ResumableBenchmarkRunner(
         movetime_ms=100,
-        run_id="test_run_auto_db",
+        run_id=run_id,
         use_wandb=False,
         total_puzzles=2,
         concurrency=1,
         engines=["Stockfish 18"],
     )
 
-    # Evaluate shard
-    res = runner.evaluate_shard_with_engine("Stockfish 18", shard_file)
+    # Evaluate shard (with fallback mock if physical binary is not on CI runner)
+    from chess_ds.engines import ENGINE_DEFAULTS
+
+    if not ENGINE_DEFAULTS["Stockfish 18"]["binary"].exists():
+        from unittest.mock import MagicMock, patch
+
+        mock_session = MagicMock()
+        mock_session.evaluate_fen.side_effect = [
+            ("e2e4", 20, 15000000.0, 0.05),
+            ("e7e5", 22, 16000000.0, 0.06),
+        ]
+        with patch("chess_ds.evaluator.EngineSession", return_value=mock_session):
+            res = runner.evaluate_shard_with_engine("Stockfish 18", shard_file)
+    else:
+        res = runner.evaluate_shard_with_engine("Stockfish 18", shard_file)
     assert res["status"] == "completed"
     assert res["total"] == 2
 
