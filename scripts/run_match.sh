@@ -17,6 +17,8 @@ cd "${REPO_ROOT}"
 # Arguments & Defaults
 ROUNDS="${1:-10}"
 TC="${2:-10+0.1}"
+DEFAULT_START_FEN="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+START_FEN="${3:-${DEFAULT_START_FEN}}"
 MATCH_TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 MATCH_ID="match_${MATCH_TIMESTAMP}"
 
@@ -29,11 +31,22 @@ if (( ROUNDS % 2 != 0 )); then
   echo ""
 fi
 
+# Starting position warning
+if [[ "${START_FEN}" == "${DEFAULT_START_FEN}" ]]; then
+  echo "⚠️  [WARNING] Using default starting FEN (standard starting position)!"
+  echo "    Playing engine matches from the standard starting board is not advisable"
+  echo "    because deterministic top engines frequently repeat identical draw lines."
+  echo "    Supplying varied opening FENs or a balanced opening book is strongly recommended."
+  echo ""
+fi
+
 # Output paths
 MATCH_DIR="data/results/matches"
 mkdir -p "${MATCH_DIR}"
 PGN_OUT="${MATCH_DIR}/${MATCH_ID}.pgn"
 TELEMETRY_LOG="${MATCH_DIR}/${MATCH_ID}_telemetry.log"
+OPENING_EPD="${MATCH_DIR}/${MATCH_ID}_opening.epd"
+echo "${START_FEN}" > "${OPENING_EPD}"
 
 # Engine Binaries
 CUTECHESS="./engines/cutechess-cli"
@@ -47,6 +60,7 @@ echo "  STARTING ENGINE VS ENGINE HEAD-TO-HEAD MATCH (2 ENGINES)"
 echo "  Match ID:       ${MATCH_ID}"
 echo "  Rounds:         ${ROUNDS} games"
 echo "  Time Control:   ${TC}"
+echo "  Starting FEN:   ${START_FEN}"
 echo "  Engine 1:       Stockfish 18 (AVX-512 CPU)"
 echo "  Engine 2:       Lc0 v0.32.1 (RTX 5090 GPU)"
 echo "  PGN Target:     ${PGN_OUT}"
@@ -61,6 +75,7 @@ echo "================================================================="
   echo "ENGINE2=Lc0 v0.32.1"
   echo "ROUNDS=${ROUNDS}"
   echo "TIME_CONTROL=${TC}"
+  echo "STARTING_FEN=${START_FEN}"
   echo "--- LIVE MATCH TELEMETRY ---"
 } > "${TELEMETRY_LOG}"
 
@@ -69,6 +84,7 @@ echo "================================================================="
   -engine name="Stockfish 18" cmd="${STOCKFISH}" proto=uci option.Threads=8 option.Hash=4096 option.SyzygyPath="${SYZYGY}" \
   -engine name="Lc0 v0.32.1" cmd="${LC0}" proto=uci arg="--weights=${LC0_WEIGHTS}" arg="--threads=2" option.SyzygyPath="${SYZYGY}" \
   -each proto=uci tc="${TC}" \
+  -openings file="${OPENING_EPD}" format=epd \
   -rounds "${ROUNDS}" \
   -games 2 \
   -repeat \

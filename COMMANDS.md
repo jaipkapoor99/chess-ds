@@ -117,17 +117,26 @@ ______________________________________________________________________
 A dedicated, standalone bash script runs head-to-head matches between 2 engines sequentially (Stockfish 18 vs. Lc0 v0.32.1) without any Python dependencies:
 
 ```bash
-./scripts/run_match.sh [ROUNDS] [TIME_CONTROL]
+./scripts/run_match.sh [ROUNDS] [TIME_CONTROL] [STARTING_FEN]
 ```
 
-### Run a 10-Game Blitz Match (Even rounds for White/Black balance)
+### Run a 10-Game Blitz Match with Standard Start (warns on default start position)
 
 ```bash
 ./scripts/run_match.sh 10 "10+0.1"
 ```
 
+### Run Match from a Specific Tactical Opening FEN
+
+```bash
+./scripts/run_match.sh 10 "10+0.1" "r1bqk2r/pppp1ppp/2n5/1B2p3/4n3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 5"
+```
+
 > [!NOTE]
-> If an odd number of rounds is passed (e.g. `./scripts/run_match.sh 7`), the script issues a warning recommending an even number so both engines receive equal games as White and Black.
+> **Advisories & Parity Checks**:
+>
+> 1. **Default Starting Board Warning**: If the standard starting position is used, a warning is issued that top deterministic engines often play repetitive opening lines resulting in theoretical draws, and varied opening FENs are recommended.
+> 1. **Odd Rounds Warning**: If an odd round count is passed, a warning recommends even numbers for equal White/Black game counts.
 
 Outputs:
 
