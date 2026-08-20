@@ -45,6 +45,12 @@ class ResumableBenchmarkRunner:
         self.run_id = run_id or time.strftime("run_%Y%m%d_%H%M%S")
         self.meta_path = CHECKPOINTS_DIR / f"{self.run_id}_meta.json"
 
+        # Parse engine list if string or single comma-separated element
+        if isinstance(engines, str):
+            engines = [e.strip() for e in engines.split(",") if e.strip()]
+        elif isinstance(engines, list) and len(engines) == 1 and "," in engines[0]:
+            engines = [e.strip() for e in engines[0].split(",") if e.strip()]
+
         # Check if we are resuming an existing run manifest
         if self.meta_path.exists():
             try:
@@ -78,7 +84,12 @@ class ResumableBenchmarkRunner:
             self.movetime_ms = movetime_ms
             self.total_puzzles = total_puzzles
             self.concurrency = concurrency
-            self.engines = engines or ["Lc0 v0.32.1", "Stockfish 18", "Reckless 0.9.0"]
+            self.engines = engines or [
+                "Stockfish 18",
+                "Pawnocchio 2.0.1",
+                "Reckless 0.9.0",
+                "Lc0 v0.32.1",
+            ]
             self.use_wandb = use_wandb
             self.wandb_project = wandb_project
 
@@ -89,6 +100,7 @@ class ResumableBenchmarkRunner:
                 "total_puzzles": self.total_puzzles,
                 "concurrency": self.concurrency,
                 "engines": self.engines,
+                "min_rating": self.min_rating,
                 "use_wandb": self.use_wandb,
                 "wandb_project": self.wandb_project,
                 "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -303,8 +315,14 @@ class ResumableBenchmarkRunner:
                 if remaining is not None and remaining <= 0:
                     break
 
-                # Check shard size
-                shard_len = len(pl.read_parquet(shard))
+                # Check shard size with min_rating filter
+                shard_df = pl.read_parquet(shard)
+                if self.min_rating is not None and "rating" in shard_df.columns:
+                    shard_df = shard_df.filter(pl.col("rating") >= self.min_rating)
+                shard_len = len(shard_df)
+                if shard_len == 0:
+                    continue
+
                 eval_count = min(shard_len, remaining) if remaining is not None else shard_len
                 self.evaluate_shard_with_engine(engine_name, shard, max_puzzles=eval_count)
                 if remaining is not None:

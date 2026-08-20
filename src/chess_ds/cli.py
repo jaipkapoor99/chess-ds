@@ -57,8 +57,8 @@ def main():
     run_parser.add_argument(
         "--engines",
         nargs="+",
-        default=["Lc0 v0.32.1", "Stockfish 18", "Reckless 0.9.0"],
-        help="Engines to test",
+        default=["Stockfish 18", "Pawnocchio 2.0.1", "Reckless 0.9.0", "Lc0 v0.32.1"],
+        help="Engines to test (space-separated or comma-separated)",
     )
     run_parser.add_argument(
         "--wandb",
@@ -139,6 +139,13 @@ def main():
         )
 
     elif args.command == "eval":
+        parsed_engines = []
+        if args.engines:
+            for item in args.engines:
+                for sub in item.split(","):
+                    if sub.strip():
+                        parsed_engines.append(sub.strip())
+
         runner = ResumableBenchmarkRunner(
             movetime_ms=args.movetime,
             run_id=args.resume,
@@ -146,7 +153,7 @@ def main():
             wandb_project=args.wandb_project,
             total_puzzles=args.total,
             concurrency=args.concurrency,
-            engines=args.engines,
+            engines=parsed_engines or None,
             min_rating=args.min_rating,
         )
 
