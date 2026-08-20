@@ -155,7 +155,14 @@ class LichessFetcher:
         shards_created: list[Path] = []
         current_rows: list[dict] = []
 
-        pbar = tqdm(total=total_puzzles, desc="Syncing Lichess Puzzles", unit="new")
+        pbar = tqdm(
+            total=total_puzzles,
+            desc="\033[1;34mLichess Zstd Stream\033[0m",
+            unit="puzzles",
+            colour="blue",
+            dynamic_ncols=True,
+            bar_format="{l_bar}{bar}| \033[1;37m{n_fmt}/{total_fmt}\033[0m [\033[33m{elapsed}<{remaining}\033[0m, \033[32m{rate_fmt}\033[0m{postfix}]",
+        )
 
         for puzzle in cls.stream_official_database(
             min_rating=min_rating, popularity_min=popularity_min

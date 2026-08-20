@@ -146,12 +146,26 @@ class ResumableBenchmarkRunner:
         session = EngineSession(engine_name)
         solved_count = sum(1 for r in evaluated_rows if r.get("is_correct", False))
 
+        # Vibrant engine-specific colors
+        engine_colors = {
+            "lc0": "cyan",
+            "stockfish": "green",
+            "reckless": "magenta",
+        }
+        bar_color = "yellow"
+        for k, col in engine_colors.items():
+            if k in engine_name.lower():
+                bar_color = col
+                break
+
         pbar = tqdm(
             total=total_puzzles,
             initial=start_idx,
-            desc=f"{engine_name} ({shard_path.stem})",
+            desc=f"\033[1;36m{engine_name}\033[0m \033[2m({shard_path.stem})\033[0m",
             unit="pos",
+            colour=bar_color,
             dynamic_ncols=True,
+            bar_format="{l_bar}{bar}| \033[1;37m{n_fmt}/{total_fmt}\033[0m [\033[33m{elapsed}<{remaining}\033[0m, \033[32m{rate_fmt}\033[0m{postfix}]",
         )
 
         rows_iter = df.iter_rows(named=True)
@@ -186,13 +200,17 @@ class ResumableBenchmarkRunner:
             evaluated_rows.append(record)
 
             acc = (solved_count / (i + 1)) * 100.0
-            pbar.set_postfix(
-                {
-                    "Acc": f"{acc:.1f}%",
-                    "NPS": f"{nps:,.0f}" if nps > 0 else "N/A",
-                    "Depth": depth,
-                    "Move": bm,
-                }
+            acc_color = (
+                "\033[1;32m" if acc >= 98.0 else ("\033[1;33m" if acc >= 90.0 else "\033[1;31m")
+            )
+            nps_str = (
+                f"{nps / 1e6:.1f}M"
+                if nps >= 1e6
+                else (f"{nps / 1e3:.0f}k" if nps >= 1e3 else f"{nps:.0f}")
+            )
+
+            pbar.set_postfix_str(
+                f"Acc: {acc_color}{acc:.1f}%\033[0m | Depth: \033[1;35m{depth}\033[0m | NPS: \033[1;33m{nps_str}\033[0m | Move: \033[1;37m{bm}\033[0m"
             )
             pbar.update(1)
 
