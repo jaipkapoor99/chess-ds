@@ -4,7 +4,7 @@ import argparse
 from pathlib import Path
 
 from chess_ds.evaluator import ResumableBenchmarkRunner
-from chess_ds.fetcher import SHARDS_DIR, LichessFetcher
+from chess_ds.fetcher import LichessFetcher
 from chess_ds.telemetry import TelemetryDashboard
 
 
@@ -34,7 +34,16 @@ def main():
     # Run command
     run_parser = subparsers.add_parser("eval", help="Run resumable benchmark across shards")
     run_parser.add_argument(
-        "--total", type=int, default=5000, help="Total target positions to evaluate (default: 5000)"
+        "--total",
+        type=int,
+        default=5000,
+        help="Total puzzles to evaluate (default: 5000)",
+    )
+    run_parser.add_argument(
+        "--min-rating",
+        type=int,
+        default=None,
+        help="Filter puzzles by minimum rating (e.g. 2500)",
     )
     run_parser.add_argument(
         "--movetime", type=int, default=500, help="Time per position in ms (default: 500)"
@@ -138,6 +147,7 @@ def main():
             total_puzzles=args.total,
             concurrency=args.concurrency,
             engines=args.engines,
+            min_rating=args.min_rating,
         )
 
         TelemetryDashboard.print_banner(
@@ -145,15 +155,18 @@ def main():
             f"Search: {runner.movetime_ms}ms/pos | Total: {runner.total_puzzles} | Concurrency: {runner.concurrency}",
         )
 
-        from chess_ds.fetcher import DATA_DIR
-        shards = sorted(DATA_DIR.glob("lichess_shard_*.parquet"))
+        from chess_ds.evaluator import DATA_DIR, SHARDS_DIR
+
+        shards = sorted(SHARDS_DIR.glob("*.parquet")) or sorted(
+            DATA_DIR.glob("lichess_shard_*.parquet")
+        )
         if not shards:
-            print("No puzzle shards found. Run `chess_ds fetch` first.")
+            print("No puzzle shards found in data/shards/ or data/. Run `chess_ds fetch` first.")
             return
 
         runner.run_suite(
             shards,
-            engine_names=runner.engines,
+            engines=runner.engines,
             concurrency=runner.concurrency,
             total_limit=runner.total_puzzles,
         )
@@ -164,7 +177,6 @@ def main():
         runner.generate_analytics_summary()
 
     elif args.command == "export-csv":
-        out_path = Path(args.output)
         TelemetryDashboard.print_banner("chess-ds Query Exporter", f"Exporting to {args.output}")
         ResumableBenchmarkRunner.export_csv_from_query(args.query, Path(args.output))
 

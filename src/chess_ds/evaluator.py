@@ -36,10 +36,12 @@ class ResumableBenchmarkRunner:
         total_puzzles: int = 5000,
         concurrency: int = 1,
         engines: list[str] | None = None,
+        min_rating: int | None = None,
     ):
         RESULTS_DIR.mkdir(parents=True, exist_ok=True)
         CHECKPOINTS_DIR.mkdir(parents=True, exist_ok=True)
 
+        self.min_rating = min_rating
         self.run_id = run_id or time.strftime("run_%Y%m%d_%H%M%S")
         self.meta_path = CHECKPOINTS_DIR / f"{self.run_id}_meta.json"
 
@@ -51,8 +53,11 @@ class ResumableBenchmarkRunner:
                 self.movetime_ms = meta.get("movetime_ms", movetime_ms)
                 self.total_puzzles = meta.get("total_puzzles", total_puzzles)
                 self.concurrency = meta.get("concurrency", concurrency)
+                self.min_rating = meta.get("min_rating", min_rating)
                 self.engines = meta.get(
-                    "engines", engines or ["Lc0 v0.32.1", "Stockfish 18", "Reckless 0.9.0"]
+                    "engines",
+                    engines
+                    or ["Stockfish 18", "Pawnocchio 2.0.1", "Reckless 0.9.0", "Lc0 v0.32.1"],
                 )
                 self.use_wandb = meta.get("use_wandb", use_wandb)
                 self.wandb_project = meta.get("wandb_project", wandb_project)
@@ -61,7 +66,12 @@ class ResumableBenchmarkRunner:
                 self.movetime_ms = movetime_ms
                 self.total_puzzles = total_puzzles
                 self.concurrency = concurrency
-                self.engines = engines or ["Lc0 v0.32.1", "Stockfish 18", "Reckless 0.9.0"]
+                self.engines = engines or [
+                    "Stockfish 18",
+                    "Pawnocchio 2.0.1",
+                    "Reckless 0.9.0",
+                    "Lc0 v0.32.1",
+                ]
                 self.use_wandb = use_wandb
                 self.wandb_project = wandb_project
         else:
@@ -112,16 +122,17 @@ class ResumableBenchmarkRunner:
         result_path = self.get_result_shard_path(engine_name, shard_path)
         ckpt_path = self.get_checkpoint_path(engine_name, shard_path)
 
-        # Check if entire shard was already evaluated for this run_id
         if result_path.exists():
             print(
                 f"[{engine_name}] Shard {shard_path.name} already completed in {result_path.name}. Skipping."
             )
-            return {"status": "already_done", "path": str(result_path)}
+            return {"engine": engine_name, "shard": shard_path.name, "status": "already_done"}
 
-        # Load input shard table
         df = pl.read_parquet(shard_path)
-        if max_puzzles is not None and max_puzzles < len(df):
+        if self.min_rating is not None and "rating" in df.columns:
+            df = df.filter(pl.col("rating") >= self.min_rating)
+
+        if max_puzzles is not None and len(df) > max_puzzles:
             df = df.slice(0, max_puzzles)
 
         total_puzzles = len(df)
