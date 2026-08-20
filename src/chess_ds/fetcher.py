@@ -7,6 +7,7 @@ import io
 import urllib.request
 from collections.abc import Generator
 from pathlib import Path
+from typing import Any
 
 import berserk
 import chess
@@ -28,11 +29,11 @@ class LichessFetcher:
         session = berserk.TokenSession(api_token) if api_token else None
         self.client = berserk.Client(session=session)
 
-    def get_daily_puzzle(self) -> dict:
+    def get_daily_puzzle(self) -> Any:
         """Fetches the official Daily Puzzle from Lichess via Berserk."""
         return self.client.puzzles.get_daily()
 
-    def get_puzzle_by_id(self, puzzle_id: str) -> dict:
+    def get_puzzle_by_id(self, puzzle_id: str) -> Any:
         """Fetches a specific puzzle metadata by ID from Lichess via Berserk."""
         return self.client.puzzles.get(puzzle_id)
 
@@ -73,7 +74,7 @@ class LichessFetcher:
                 try:
                     rating = int(parts[rating_idx])
                     pop = int(parts[pop_idx]) if pop_idx != -1 else 100
-                except ValueError, IndexError:
+                except (ValueError, IndexError):
                     continue
 
                 if rating < min_rating or pop < popularity_min:
@@ -89,7 +90,7 @@ class LichessFetcher:
                     board.push(blunder)
                     puzzle_fen = board.fen()
                     solution = moves_list[1]
-                except ValueError, IndexError, chess.IllegalMoveError:
+                except (ValueError, IndexError, chess.IllegalMoveError):
                     continue
 
                 yield {
@@ -112,7 +113,7 @@ class LichessFetcher:
             try:
                 table = pq.read_table(shard_file, columns=["puzzle_id"])
                 existing_ids.update(table["puzzle_id"].to_pylist())
-            except pa.ArrowInvalid, OSError:
+            except (pa.ArrowInvalid, OSError):
                 continue
 
         return existing_ids

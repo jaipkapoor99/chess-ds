@@ -50,8 +50,9 @@ class EngineSession:
         self.name = name
         cfg = ENGINE_DEFAULTS[name]
         cmd = [str(cfg["binary"])]
-        if "weights" in cfg and cfg["weights"].exists():
-            cmd.extend([f"--weights={cfg['weights']}", f"--threads={min(threads, 2)}"])
+        weights_path = cfg.get("weights")
+        if isinstance(weights_path, Path) and weights_path.exists():
+            cmd.extend([f"--weights={weights_path}", f"--threads={min(threads, 2)}"])
 
         self.process = subprocess.Popen(
             cmd,
@@ -62,12 +63,15 @@ class EngineSession:
             bufsize=1,
         )
 
+        assert self.process.stdin is not None
         for c in cfg["setup"]:
             self.process.stdin.write(c + "\n")
         self.process.stdin.flush()
 
     def evaluate_fen(self, fen: str, movetime_ms: int = 1000) -> tuple[str, int, float, float]:
         """Evaluates a FEN position. Returns (bestmove, depth, nps, elapsed_seconds)."""
+        assert self.process.stdin is not None
+        assert self.process.stdout is not None
         self.process.stdin.write(f"position fen {fen}\n")
         self.process.stdin.write(f"go movetime {movetime_ms}\n")
         self.process.stdin.flush()
@@ -81,21 +85,21 @@ class EngineSession:
             line = self.process.stdout.readline()
             if not line:
                 break
-            l = line.strip()
-            if "info" in l:
-                parts = l.split()
+            line_str = line.strip()
+            if "info" in line_str:
+                parts = line_str.split()
                 if "depth" in parts:
                     try:
                         depth = int(parts[parts.index("depth") + 1])
-                    except ValueError, IndexError:
+                    except (ValueError, IndexError):
                         pass
                 if "nps" in parts:
                     try:
                         nps = float(parts[parts.index("nps") + 1])
-                    except ValueError, IndexError:
+                    except (ValueError, IndexError):
                         pass
-            if "bestmove" in l:
-                parts = l.split()
+            if "bestmove" in line_str:
+                parts = line_str.split()
                 if len(parts) >= 2:
                     bestmove = parts[1]
                 break
@@ -104,8 +108,9 @@ class EngineSession:
 
     def close(self):
         try:
-            self.process.stdin.write("quit\n")
-            self.process.stdin.flush()
+            if self.process.stdin is not None:
+                self.process.stdin.write("quit\n")
+                self.process.stdin.flush()
             self.process.terminate()
         except OSError:
             pass

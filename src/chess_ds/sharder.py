@@ -46,14 +46,14 @@ def build_puzzle_shards(
     shard_index = 0
     shards_created: list[Path] = []
 
-    with open(CSV_PATH, "r", encoding="utf-8") as f:
+    with open(CSV_PATH, encoding="utf-8") as f:
         reader = csv.DictReader(f)
         pbar = tqdm(total=total_target, desc="Sharding Ultra-Hard Puzzles")
 
         for row in reader:
             try:
                 rating = int(row.get("Rating", 0))
-            except ValueError, TypeError:
+            except (ValueError, TypeError):
                 continue
 
             if rating < min_rating:
@@ -69,7 +69,7 @@ def build_puzzle_shards(
                 board.push(blunder_move)
                 puzzle_fen = board.fen()
                 solution = moves_list[1]
-            except ValueError, IndexError, chess.IllegalMoveError:
+            except (ValueError, IndexError, chess.IllegalMoveError):
                 continue
 
             current_shard_rows.append(

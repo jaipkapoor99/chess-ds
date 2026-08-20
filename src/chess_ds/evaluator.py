@@ -62,14 +62,14 @@ class ResumableBenchmarkRunner:
         start_idx = 0
         if ckpt_path.exists():
             try:
-                with open(ckpt_path, "r") as f:
+                with open(ckpt_path) as f:
                     ckpt = json.load(f)
                     start_idx = ckpt.get("last_index", 0)
                     evaluated_rows = ckpt.get("results", [])
                 print(
                     f"[{engine_name}] ↺ Resuming {shard_path.name} from puzzle index {start_idx}/{total_puzzles}..."
                 )
-            except json.JSONDecodeError, OSError, KeyError:
+            except (json.JSONDecodeError, OSError, KeyError):
                 start_idx = 0
                 evaluated_rows = []
 
@@ -177,7 +177,7 @@ class ResumableBenchmarkRunner:
 
         con = duckdb.connect()
         query = """
-        SELECT 
+        SELECT
             engine,
             COUNT(*) as total_puzzles,
             SUM(CASE WHEN is_correct THEN 1 ELSE 0 END) as solved,
