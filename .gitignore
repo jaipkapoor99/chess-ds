@@ -12,8 +12,7 @@ weights/*.pb
 weights/*.onnx
 weights/*.bin
 
-# Data and logs
-data/*.csv
-data/*.pgn
+# Data, checkpoints, and logs
+data/
 logs/
 *.log
