@@ -33,7 +33,7 @@ jobs:
         run: uv run ruff format --check .
 
       - name: Check Markdown formatting with mdformat
-        run: uv run mdformat --check README.md COMMANDS.md SCHEMA.md
+        run: uv run mdformat --check README.md COMMANDS.md SCHEMA.md BENCHMARKS.md
 
       - name: Type check with Pyrefly
         run: uv run pyrefly check

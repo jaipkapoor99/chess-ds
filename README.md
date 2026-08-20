@@ -61,6 +61,9 @@ uv sync
 uv run python -m chess_ds.cli eval --total 5000 --movetime 500 --concurrency 2
 ```
 
+> [!TIP]
+> View empirical results comparing **Reckless 0.9.0**, **Lc0 v0.32.1**, and **Stockfish 18** in \[`BENCHMARKS.md`\](file:///home/jaipkapoor99/Code/chess-ds/BENCHMARKS.md).
+
 ### Display Rich Terminal Telemetry Summary
 
 ```bash
