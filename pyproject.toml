@@ -3,9 +3,10 @@ name = "chess-ds"
 version = "0.1.0"
 description = "Chess Data Science, Engine Benchmarking, and Analytics Platform"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.14"
 dependencies = [
     "chess>=1.10.0",
+    "berserk>=0.14.0",
     "numpy>=1.26.0",
     "pandas>=2.2.0",
     "polars>=1.0.0",
@@ -16,6 +17,7 @@ dependencies = [
     "tqdm>=4.66.0",
     "pytest>=8.0.0",
     "ruff>=0.5.0",
+    "beserker>=0.1.0",
 ]
 
 [build-system]
@@ -24,4 +26,4 @@ build-backend = "hatchling.build"
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py314"
