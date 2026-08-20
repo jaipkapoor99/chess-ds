@@ -109,6 +109,7 @@ class ResumableBenchmarkRunner:
         max_puzzles: int | None = None,
     ) -> dict:
         """Evaluates a parquet shard with state resumption keyed by self.run_id."""
+        safe_name = engine_name.lower().replace(" ", "_").replace(".", "_")
         result_path = self.get_result_shard_path(engine_name, shard_path)
         ckpt_path = self.get_checkpoint_path(engine_name, shard_path)
 
@@ -183,12 +184,29 @@ class ResumableBenchmarkRunner:
             if is_correct:
                 solved_count += 1
 
+            # Convert moves to Standard Algebraic Notation (SAN)
+            from chess_ds.board import render_board_svg, uci_to_san
+
+            sol_san = uci_to_san(fen, solution)
+            bm_san = uci_to_san(fen, bm)
+
+            # Auto-render diagram for analysis if engine misses the puzzle
+            if not is_correct and i < 20:
+                diag_dir = RESULTS_DIR / "diagrams"
+                diag_dir.mkdir(exist_ok=True)
+                diag_path = diag_dir / f"{self.run_id}_{puzzle_id}_{safe_name}.svg"
+                render_board_svg(
+                    fen, solution_uci=solution, engine_move_uci=bm, output_path=diag_path
+                )
+
             record = {
                 "run_id": self.run_id,
                 "puzzle_id": puzzle_id,
                 "fen": fen,
                 "solution": solution,
+                "solution_san": sol_san,
                 "engine_move": bm,
+                "engine_move_san": bm_san,
                 "is_correct": is_correct,
                 "depth": depth,
                 "nps": nps,
@@ -210,7 +228,7 @@ class ResumableBenchmarkRunner:
             )
 
             pbar.set_postfix_str(
-                f"Acc: {acc_color}{acc:.1f}%\033[0m | Depth: \033[1;35m{depth}\033[0m | NPS: \033[1;33m{nps_str}\033[0m | Move: \033[1;37m{bm}\033[0m"
+                f"Acc: {acc_color}{acc:.1f}%\033[0m | Depth: \033[1;35m{depth}\033[0m | NPS: \033[1;33m{nps_str}\033[0m | Move: \033[1;37m{bm_san}\033[0m"
             )
             pbar.update(1)
 
