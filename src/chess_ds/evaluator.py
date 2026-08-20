@@ -199,3 +199,18 @@ class ResumableBenchmarkRunner:
         print("=" * 110)
         print(df_summary)
         print("=" * 110)
+
+    @classmethod
+    def export_csv_from_query(
+        cls,
+        sql_query: str,
+        output_csv_path: Path,
+    ) -> None:
+        """Executes a DuckDB SQL analytical query over Parquet files and exports the result to CSV."""
+        con = duckdb.connect()
+        try:
+            con.execute(f"COPY ({sql_query}) TO '{output_csv_path}' (HEADER, DELIMITER ',')")
+            print(f"✓ DuckDB query result exported to: {output_csv_path}")
+        except Exception as e:
+            print(f"Query export error: {e}")
+        print("=" * 110)

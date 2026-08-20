@@ -1,6 +1,7 @@
 """Command-line interface for chess-ds sharding and resumable evaluation."""
 
 import argparse
+from pathlib import Path
 
 from chess_ds.evaluator import ResumableBenchmarkRunner
 from chess_ds.fetcher import SHARDS_DIR, LichessFetcher
@@ -47,6 +48,23 @@ def main():
         "summary", help="Query and display DuckDB analytics across completed results"
     )
 
+    # Export CSV from Query command
+    export_parser = subparsers.add_parser(
+        "export-csv", help="Export DuckDB query results over Parquet tables directly to CSV"
+    )
+    export_parser.add_argument(
+        "--query",
+        type=str,
+        default="SELECT engine, COUNT(*) as total_puzzles, SUM(CASE WHEN is_correct THEN 1 ELSE 0 END) as solved, ROUND(AVG(CASE WHEN is_correct THEN 1.0 ELSE 0.0 END)*100, 2) as accuracy_pct, ROUND(AVG(nps), 0) as avg_nps, ROUND(AVG(depth), 1) as avg_depth, ROUND(AVG(elapsed_seconds), 3) as avg_sec_per_pos FROM read_parquet('data/results/*.parquet') GROUP BY engine ORDER BY accuracy_pct DESC",
+        help="SQL query to execute against DuckDB",
+    )
+    export_parser.add_argument(
+        "--output",
+        type=str,
+        default="data/results/query_export.csv",
+        help="Output CSV file path",
+    )
+
     args = parser.parse_args()
 
     if args.command == "fetch":
@@ -79,6 +97,10 @@ def main():
     elif args.command == "summary":
         TelemetryDashboard.print_banner("chess-ds Analytics Dashboard", "Zero-Copy Parquet Rollup")
         TelemetryDashboard.render_results_summary()
+
+    elif args.command == "export-csv":
+        TelemetryDashboard.print_banner("chess-ds Query Exporter", f"Exporting to {args.output}")
+        ResumableBenchmarkRunner.export_csv_from_query(args.query, Path(args.output))
 
 
 if __name__ == "__main__":
