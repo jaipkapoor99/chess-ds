@@ -60,25 +60,25 @@ ______________________________________________________________________
 > [!NOTE]
 > **Automatic Database Ingestion**: All benchmarks automatically persist evaluation telemetry directly to the Parquet/DuckDB database in `data/results/` with ISO timestamps and resume checkpoints.
 
-### Evaluate 5,000 positions with 2 concurrent engines (500ms search budget)
+### 1. Start a New Benchmark Run (Automatically creates Run ID and saves manifest)
 
 ```bash
 uv run python -m chess_ds.cli eval --total 5000 --movetime 500 --concurrency 2
 ```
 
-### Evaluate with live Weights & Biases telemetry streaming
+### 2. Resume an Interrupted Run (Auto-recovers all parameters & metadata from Run ID)
+
+```bash
+uv run python -m chess_ds.cli eval --resume run_20260820_125300
+```
+
+### 3. Evaluate with Live Weights & Biases Telemetry Streaming
 
 ```bash
 uv run python -m chess_ds.cli eval --total 5000 --movetime 500 --concurrency 2 --wandb --wandb-project chess-ds
 ```
 
-### Evaluate specific engine subset sequentially
-
-```bash
-uv run python -m chess_ds.cli eval --engines "Stockfish 18" "Lc0 v0.32.1" --total 1000 --movetime 500 --concurrency 1
-```
-
-### Deep lookahead benchmark (2.0s search budget)
+### 4. Deep Lookahead Benchmark (2.0s search budget)
 
 ```bash
 uv run python -m chess_ds.cli eval --total 500 --movetime 2000 --concurrency 1
