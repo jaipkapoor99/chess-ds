@@ -1,6 +1,5 @@
 """Dedicated Rich Telemetry and Analytical Dashboard for chess-ds."""
 
-import os
 from pathlib import Path
 
 import duckdb
@@ -29,7 +28,7 @@ class WandbLogger:
         try:
             import wandb
 
-            mode = "offline" if offline or not os.environ.get("WANDB_API_KEY") else "online"
+            mode = "offline" if offline else "online"
             self.run = wandb.init(
                 project=project_name,
                 name=run_name,
@@ -41,7 +40,7 @@ class WandbLogger:
                 f"[bold cyan]Weights & Biases initialized[/bold cyan] in [bold green]{mode}[/bold green] mode."
             )
         except Exception as e:
-            console.print(f"[dim yellow]WandB init bypassed ({e})[/dim yellow]")
+            console.print(f"[dim yellow]WandB init notice ({e})[/dim yellow]")
 
     def log_position_metrics(
         self,
