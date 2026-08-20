@@ -3,7 +3,7 @@ name = "chess-ds"
 version = "0.1.0"
 description = "Chess Data Science, Engine Benchmarking, and Analytics Platform"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.14"
 dependencies = [
     "chess>=1.10.0",
     "berserk>=0.14.0",
