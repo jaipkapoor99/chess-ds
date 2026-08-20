@@ -1,7 +1,7 @@
 # `chess-ds`: Pedagogical Chess Data Science & Engine Analytics Platform
 
 > [!NOTE]
-> **Pedagogical Purpose**: This repository is designed as an educational, pedagogical research platform demonstrating modern chess data science, high-performance engine benchmarking, neural network vs. alpha-beta search paradigms, and distributed data pipelines.
+> **Pedagogical Purpose**: This repository is designed as a pedagogical research platform demonstrating modern chess data science, high-performance engine benchmarking, neural network vs. alpha-beta search paradigms, and distributed data pipelines.
 
 ______________________________________________________________________
 
