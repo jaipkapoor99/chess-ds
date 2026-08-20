@@ -9,8 +9,10 @@ ______________________________________________________________________
 
 1. **Neural MCTS vs. Alpha-Beta Evaluation**:
 
-   - **Leela Chess Zero (`Lc0`)**: GPU-accelerated Monte Carlo Tree Search (MCTS) utilizing deep Policy-Value Transformer neural networks (`BT4-332.pb`) running on Tensor Cores.
-   - **Stockfish 18 & Reckless 0.9.0**: Highly optimized CPU Alpha-Beta search engines powered by AVX-512 NNUE evaluation.
+   - **Leela Chess Zero ([`Lc0`](https://github.com/LeelaChessZero/lc0))**: GPU-accelerated Monte Carlo Tree Search (MCTS) utilizing deep Policy-Value Transformer neural networks (`BT4-332.pb`) running on Tensor Cores.
+   - **Stockfish ([`Stockfish`](https://github.com/official-stockfish/Stockfish))**: Highly optimized CPU Alpha-Beta search engine powered by AVX-512 NNUE evaluation.
+   - **Reckless ([`Reckless`](https://github.com/lucasart/reckless))**: High-performance open-source UCI chess engine featuring advanced NNUE and search pruning techniques.
+   - **Cutechess ([`cutechess`](https://github.com/cutechess/cutechess))**: Tournament arbiter and CLI interface for engine matches.
 
 1. **Large-Scale Data Engineering**:
 
