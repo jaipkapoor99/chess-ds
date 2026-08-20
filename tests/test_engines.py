@@ -33,6 +33,19 @@ def test_reckless_session():
 
 
 @pytest.mark.skipif(
+    not ENGINE_DEFAULTS["Pawnocchio 2.0.1"]["binary"].exists(),
+    reason="Pawnocchio binary not present in CI runner environment",
+)
+def test_pawnocchio_session():
+    engine = EngineSession("Pawnocchio 2.0.1")
+    fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
+    bm, depth, _nps, _elapsed = engine.evaluate_fen(fen, movetime_ms=300)
+    engine.close()
+    assert len(bm) >= 4
+    assert depth >= 5
+
+
+@pytest.mark.skipif(
     not ENGINE_DEFAULTS["Lc0 v0.32.1"]["binary"].exists(),
     reason="Lc0 binary not present in CI runner environment",
 )

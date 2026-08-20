@@ -90,6 +90,20 @@ class TelemetryDashboard:
         console.print(Panel(content, box=ROUNDED, border_style="bright_blue", expand=False))
 
     @staticmethod
+    def get_engine_color(engine_name: str) -> str:
+        """Returns engine-specific theme color for progress bars and UI."""
+        eng_lower = engine_name.lower()
+        if "lc0" in eng_lower or "leela" in eng_lower:
+            return "bold cyan"
+        if "stockfish" in eng_lower:
+            return "bold green"
+        if "reckless" in eng_lower:
+            return "bold magenta"
+        if "pawnocchio" in eng_lower:
+            return "bold yellow"
+        return "bold blue"
+
+    @staticmethod
     def print_engine_card(engine_name: str, config: dict):
         """Prints engine specifications in a styled panel."""
         t = Table(show_header=False, box=None, padding=(0, 1))

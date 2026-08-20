@@ -31,6 +31,16 @@ ENGINE_DEFAULTS = {
             "isready",
         ],
     },
+    "Pawnocchio 2.0.1": {
+        "binary": ENGINES_DIR / "pawnocchio-2.0.1-linux-x86_64_znver5",
+        "setup": [
+            "uci",
+            "setoption name Threads value 8",
+            "setoption name Hash value 8192",
+            f"setoption name SyzygyPath value {SYZYGY_DIR}",
+            "isready",
+        ],
+    },
     "Lc0 v0.32.1": {
         "binary": ENGINES_DIR / "lc0",
         "weights": WEIGHTS_DIR / "BT4-332.pb",
