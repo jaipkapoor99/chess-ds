@@ -62,6 +62,17 @@ def main():
         default="chess-ds",
         help="Weights & Biases project name (default: chess-ds)",
     )
+    run_parser.add_argument(
+        "--fresh",
+        action="store_true",
+        help="Force a fresh benchmark run from scratch (ignores previous completed shards)",
+    )
+    run_parser.add_argument(
+        "--run-id",
+        type=str,
+        default=None,
+        help="Custom run identifier / timestamp (default: auto-generated timestamp)",
+    )
 
     # Summary command
     subparsers.add_parser(
@@ -114,8 +125,10 @@ def main():
 
         runner = ResumableBenchmarkRunner(
             movetime_ms=args.movetime,
+            run_id=args.run_id,
             use_wandb=args.wandb,
             wandb_project=args.wandb_project,
+            force_fresh=args.fresh,
         )
         runner.run_suite(
             shards,

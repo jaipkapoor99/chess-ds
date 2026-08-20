@@ -33,9 +33,11 @@ class ResumableBenchmarkRunner:
         run_id: str | None = None,
         use_wandb: bool = False,
         wandb_project: str = "chess-ds",
+        force_fresh: bool = False,
     ):
         self.movetime_ms = movetime_ms
         self.timestamp = run_id or time.strftime("%Y%m%d_%H%M%S")
+        self.force_fresh = force_fresh
         self.use_wandb = use_wandb
         self.wandb_logger = None
         if self.use_wandb:
@@ -69,9 +71,9 @@ class ResumableBenchmarkRunner:
         safe_name = engine_name.lower().replace(" ", "_").replace(".", "_")
         ckpt_path = self.get_checkpoint_path(engine_name, shard_path)
 
-        # Check if entire shard was already evaluated in a prior run
+        # Check if entire shard was already evaluated in a prior run (unless force_fresh is requested)
         existing_results = sorted(RESULTS_DIR.glob(f"eval_{safe_name}_{shard_path.stem}_*.parquet"))
-        if existing_results and not ckpt_path.exists():
+        if not self.force_fresh and existing_results and not ckpt_path.exists():
             print(
                 f"[{engine_name}] Shard {shard_path.name} already fully evaluated in {existing_results[-1].name}. Skipping."
             )
