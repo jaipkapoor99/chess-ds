@@ -112,13 +112,17 @@ def main():
                 min_rating=2500, total_puzzles=args.total, shard_size=1000
             )
 
-        active_shards = shards[: (args.total + 999) // 1000]
         runner = ResumableBenchmarkRunner(
             movetime_ms=args.movetime,
             use_wandb=args.wandb,
             wandb_project=args.wandb_project,
         )
-        runner.run_suite(active_shards, engines=args.engines, concurrency=args.concurrency)
+        runner.run_suite(
+            shards,
+            engines=args.engines,
+            concurrency=args.concurrency,
+            total_limit=args.total,
+        )
 
     elif args.command == "summary":
         TelemetryDashboard.print_banner("chess-ds Analytics Dashboard", "Zero-Copy Parquet Rollup")

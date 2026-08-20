@@ -60,8 +60,9 @@ class ResumableBenchmarkRunner:
         self,
         engine_name: str,
         shard_path: Path,
+        max_puzzles: int | None = None,
     ) -> dict:
-        """Evaluates a single parquet shard with state resumption."""
+        """Evaluates a parquet shard with state resumption, respecting exact max_puzzles limits."""
         result_path = self.get_result_shard_path(engine_name, shard_path)
         ckpt_path = self.get_checkpoint_path(engine_name, shard_path)
 
@@ -72,6 +73,9 @@ class ResumableBenchmarkRunner:
 
         # Load input shard table
         df = pl.read_parquet(shard_path)
+        if max_puzzles is not None and max_puzzles < len(df):
+            df = df.slice(0, max_puzzles)
+
         total_puzzles = len(df)
 
         # Check resume checkpoint
@@ -186,23 +190,32 @@ class ResumableBenchmarkRunner:
         shards: list[Path],
         engines: list[str] | None = None,
         concurrency: int = 1,
+        total_limit: int | None = None,
     ) -> None:
-        """Executes benchmark suite across shards and engines with dynamic concurrency."""
+        """Executes benchmark suite across shards and engines with dynamic concurrency and exact position limits."""
         if engines is None:
             engines = ["Lc0 v0.32.1", "Stockfish 18", "Reckless 0.9.0"]
 
         print("\n=================================================================")
         print("  STARTING MULTI-ENGINE RESUMABLE BENCHMARK SUITE")
-        print(
-            f"  Total Shards: {len(shards)} | Engines: {len(engines)} | Concurrency: {concurrency}"
-        )
+        limit_str = f"{total_limit:,} Positions" if total_limit else "All Available"
+        print(f"  Target: {limit_str} | Engines: {len(engines)} | Concurrency: {concurrency}")
         print("=================================================================\n")
 
         from concurrent.futures import ThreadPoolExecutor
 
         def run_for_engine(engine_name: str) -> None:
+            remaining = total_limit
             for shard in shards:
-                self.evaluate_shard_with_engine(engine_name, shard)
+                if remaining is not None and remaining <= 0:
+                    break
+
+                # Check shard size
+                shard_len = len(pl.read_parquet(shard))
+                eval_count = min(shard_len, remaining) if remaining is not None else shard_len
+                self.evaluate_shard_with_engine(engine_name, shard, max_puzzles=eval_count)
+                if remaining is not None:
+                    remaining -= eval_count
 
         if concurrency > 1:
             with ThreadPoolExecutor(max_workers=concurrency) as executor:
