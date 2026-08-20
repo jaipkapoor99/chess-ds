@@ -92,6 +92,24 @@ def main():
         help="Output CSV file path",
     )
 
+    # Export Enriched PGN command
+    export_pgn_parser = subparsers.add_parser(
+        "export-pgn",
+        help="Enrich and export engine match PGNs with average depth and timing telemetry headers",
+    )
+    export_pgn_parser.add_argument(
+        "--input",
+        type=str,
+        required=True,
+        help="Input raw match PGN file path",
+    )
+    export_pgn_parser.add_argument(
+        "--output",
+        type=str,
+        default=None,
+        help="Output annotated PGN file path (optional)",
+    )
+
     args = parser.parse_args()
 
     if args.command == "fetch":
@@ -144,6 +162,14 @@ def main():
     elif args.command == "export-csv":
         TelemetryDashboard.print_banner("chess-ds Query Exporter", f"Exporting to {args.output}")
         ResumableBenchmarkRunner.export_csv_from_query(args.query, Path(args.output))
+
+    elif args.command == "export-pgn":
+        from chess_ds.match_ingest import enrich_and_export_pgn
+
+        in_p = Path(args.input)
+        out_p = Path(args.output) if args.output else None
+        res_p = enrich_and_export_pgn(in_p, out_p)
+        print(f"✓ Enriched PGN with engine telemetry exported to: {res_p}")
 
 
 if __name__ == "__main__":

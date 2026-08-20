@@ -26,3 +26,13 @@ def test_cli_export_csv_parser():
         ) as mock_export:
             main()
             mock_export.assert_called_once()
+
+
+def test_cli_export_pgn_parser():
+    with patch(
+        "sys.argv",
+        ["chess_ds", "export-pgn", "--input", "data/results/matches/test.pgn"],
+    ):
+        with patch("chess_ds.match_ingest.enrich_and_export_pgn") as mock_export_pgn:
+            main()
+            mock_export_pgn.assert_called_once()
