@@ -63,15 +63,10 @@ def main():
         help="Weights & Biases project name (default: chess-ds)",
     )
     run_parser.add_argument(
-        "--fresh",
-        action="store_true",
-        help="Force a fresh benchmark run from scratch (ignores previous completed shards)",
-    )
-    run_parser.add_argument(
-        "--run-id",
+        "--resume",
         type=str,
         default=None,
-        help="Custom run identifier / timestamp (default: auto-generated timestamp)",
+        help="Resume an interrupted run by providing its Run ID (recovers all parameters automatically)",
     )
 
     # Summary command
@@ -110,31 +105,35 @@ def main():
         )
 
     elif args.command == "eval":
-        TelemetryDashboard.print_banner(
-            "chess-ds Multi-Engine Benchmark",
-            f"Search: {args.movetime}ms/pos | Concurrency: {args.concurrency}",
+        runner = ResumableBenchmarkRunner(
+            movetime_ms=args.movetime,
+            run_id=args.resume,
+            use_wandb=args.wandb,
+            wandb_project=args.wandb_project,
+            total_puzzles=args.total,
+            concurrency=args.concurrency,
+            engines=args.engines,
         )
+
+        TelemetryDashboard.print_banner(
+            f"chess-ds Benchmark: {runner.run_id}",
+            f"Search: {runner.movetime_ms}ms/pos | Total: {runner.total_puzzles:,} | Concurrency: {runner.concurrency}",
+        )
+
         shards = sorted(SHARDS_DIR.glob("*.parquet"))
         if not shards:
             print(
                 "No shards found. Streaming fresh ultra-hard puzzles live from official Lichess repository..."
             )
             shards = LichessFetcher.build_live_parquet_shards(
-                min_rating=2500, total_puzzles=args.total, shard_size=1000
+                min_rating=2500, total_puzzles=runner.total_puzzles, shard_size=1000
             )
 
-        runner = ResumableBenchmarkRunner(
-            movetime_ms=args.movetime,
-            run_id=args.run_id,
-            use_wandb=args.wandb,
-            wandb_project=args.wandb_project,
-            force_fresh=args.fresh,
-        )
         runner.run_suite(
             shards,
-            engines=args.engines,
-            concurrency=args.concurrency,
-            total_limit=args.total,
+            engines=runner.engines,
+            concurrency=runner.concurrency,
+            total_limit=runner.total_puzzles,
         )
 
     elif args.command == "summary":

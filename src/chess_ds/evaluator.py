@@ -25,7 +25,7 @@ CHECKPOINTS_DIR = DATA_DIR / "checkpoints"
 
 
 class ResumableBenchmarkRunner:
-    """Orchestrates multi-engine evaluation across Parquet shards with state checkpointing."""
+    """Orchestrates multi-engine evaluation across Parquet shards with run_id metadata checkpointing."""
 
     def __init__(
         self,
@@ -33,33 +33,74 @@ class ResumableBenchmarkRunner:
         run_id: str | None = None,
         use_wandb: bool = False,
         wandb_project: str = "chess-ds",
-        force_fresh: bool = False,
+        total_puzzles: int = 5000,
+        concurrency: int = 1,
+        engines: list[str] | None = None,
     ):
-        self.movetime_ms = movetime_ms
-        self.timestamp = run_id or time.strftime("%Y%m%d_%H%M%S")
-        self.force_fresh = force_fresh
-        self.use_wandb = use_wandb
+        RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+        CHECKPOINTS_DIR.mkdir(parents=True, exist_ok=True)
+
+        self.run_id = run_id or time.strftime("run_%Y%m%d_%H%M%S")
+        self.meta_path = CHECKPOINTS_DIR / f"{self.run_id}_meta.json"
+
+        # Check if we are resuming an existing run manifest
+        if self.meta_path.exists():
+            try:
+                with open(self.meta_path) as f:
+                    meta = json.load(f)
+                self.movetime_ms = meta.get("movetime_ms", movetime_ms)
+                self.total_puzzles = meta.get("total_puzzles", total_puzzles)
+                self.concurrency = meta.get("concurrency", concurrency)
+                self.engines = meta.get(
+                    "engines", engines or ["Lc0 v0.32.1", "Stockfish 18", "Reckless 0.9.0"]
+                )
+                self.use_wandb = meta.get("use_wandb", use_wandb)
+                self.wandb_project = meta.get("wandb_project", wandb_project)
+                print(f"↺ [RESUME] Recovered metadata for Run ID: {self.run_id}")
+            except Exception:
+                self.movetime_ms = movetime_ms
+                self.total_puzzles = total_puzzles
+                self.concurrency = concurrency
+                self.engines = engines or ["Lc0 v0.32.1", "Stockfish 18", "Reckless 0.9.0"]
+                self.use_wandb = use_wandb
+                self.wandb_project = wandb_project
+        else:
+            self.movetime_ms = movetime_ms
+            self.total_puzzles = total_puzzles
+            self.concurrency = concurrency
+            self.engines = engines or ["Lc0 v0.32.1", "Stockfish 18", "Reckless 0.9.0"]
+            self.use_wandb = use_wandb
+            self.wandb_project = wandb_project
+
+            # Save initial manifest
+            manifest = {
+                "run_id": self.run_id,
+                "movetime_ms": self.movetime_ms,
+                "total_puzzles": self.total_puzzles,
+                "concurrency": self.concurrency,
+                "engines": self.engines,
+                "use_wandb": self.use_wandb,
+                "wandb_project": self.wandb_project,
+                "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            }
+            with open(self.meta_path, "w") as f:
+                json.dump(manifest, f, indent=2)
+
         self.wandb_logger = None
         if self.use_wandb:
             from chess_ds.telemetry import WandbLogger
 
             self.wandb_logger = WandbLogger(
-                project_name=wandb_project, run_name=f"benchmark_{self.timestamp}"
+                project_name=self.wandb_project, run_name=f"benchmark_{self.run_id}"
             )
-
-        RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-        CHECKPOINTS_DIR.mkdir(parents=True, exist_ok=True)
 
     def get_checkpoint_path(self, engine_name: str, shard_path: Path) -> Path:
         safe_name = engine_name.lower().replace(" ", "_").replace(".", "_")
-        return CHECKPOINTS_DIR / f"{safe_name}_{shard_path.stem}.json"
+        return CHECKPOINTS_DIR / f"{self.run_id}_{safe_name}_{shard_path.stem}.json"
 
-    def get_result_shard_path(
-        self, engine_name: str, shard_path: Path, timestamp: str | None = None
-    ) -> Path:
+    def get_result_shard_path(self, engine_name: str, shard_path: Path) -> Path:
         safe_name = engine_name.lower().replace(" ", "_").replace(".", "_")
-        ts = timestamp or self.timestamp
-        return RESULTS_DIR / f"eval_{safe_name}_{shard_path.stem}_{ts}.parquet"
+        return RESULTS_DIR / f"eval_{self.run_id}_{safe_name}_{shard_path.stem}.parquet"
 
     def evaluate_shard_with_engine(
         self,
@@ -67,17 +108,16 @@ class ResumableBenchmarkRunner:
         shard_path: Path,
         max_puzzles: int | None = None,
     ) -> dict:
-        """Evaluates a parquet shard with state resumption, respecting datestamps and exact limits."""
-        safe_name = engine_name.lower().replace(" ", "_").replace(".", "_")
+        """Evaluates a parquet shard with state resumption keyed by self.run_id."""
+        result_path = self.get_result_shard_path(engine_name, shard_path)
         ckpt_path = self.get_checkpoint_path(engine_name, shard_path)
 
-        # Check if entire shard was already evaluated in a prior run (unless force_fresh is requested)
-        existing_results = sorted(RESULTS_DIR.glob(f"eval_{safe_name}_{shard_path.stem}_*.parquet"))
-        if not self.force_fresh and existing_results and not ckpt_path.exists():
+        # Check if entire shard was already evaluated for this run_id
+        if result_path.exists():
             print(
-                f"[{engine_name}] Shard {shard_path.name} already fully evaluated in {existing_results[-1].name}. Skipping."
+                f"[{engine_name}] Shard {shard_path.name} already completed in {result_path.name}. Skipping."
             )
-            return {"status": "already_done", "path": str(existing_results[-1])}
+            return {"status": "already_done", "path": str(result_path)}
 
         # Load input shard table
         df = pl.read_parquet(shard_path)
@@ -86,10 +126,9 @@ class ResumableBenchmarkRunner:
 
         total_puzzles = len(df)
 
-        # Check resume checkpoint and recover original run datestamp
+        # Check resume checkpoint
         evaluated_rows: list[dict] = []
         start_idx = 0
-        run_ts = self.timestamp
 
         if ckpt_path.exists():
             try:
@@ -97,15 +136,12 @@ class ResumableBenchmarkRunner:
                     ckpt = json.load(f)
                     start_idx = ckpt.get("last_index", 0)
                     evaluated_rows = ckpt.get("results", [])
-                    run_ts = ckpt.get("run_timestamp", self.timestamp)
                 print(
-                    f"[{engine_name}] ↺ Resuming run ({run_ts}) on {shard_path.name} from puzzle index {start_idx}/{total_puzzles}..."
+                    f"[{engine_name}] ↺ Resuming {shard_path.name} from position {start_idx}/{total_puzzles}..."
                 )
             except (json.JSONDecodeError, OSError, KeyError):
                 start_idx = 0
                 evaluated_rows = []
-
-        result_path = self.get_result_shard_path(engine_name, shard_path, timestamp=run_ts)
 
         session = EngineSession(engine_name)
         solved_count = sum(1 for r in evaluated_rows if r.get("is_correct", False))
@@ -119,7 +155,6 @@ class ResumableBenchmarkRunner:
         )
 
         rows_iter = df.iter_rows(named=True)
-        # Skip already evaluated rows
         for _ in range(start_idx):
             next(rows_iter, None)
 
@@ -135,7 +170,7 @@ class ResumableBenchmarkRunner:
                 solved_count += 1
 
             record = {
-                "run_id": run_ts,
+                "run_id": self.run_id,
                 "puzzle_id": puzzle_id,
                 "fen": fen,
                 "solution": solution,
@@ -173,12 +208,12 @@ class ResumableBenchmarkRunner:
                     rating=rating,
                 )
 
-            # Checkpoint every 50 positions with run datestamp preserved
+            # Checkpoint every 50 positions
             if (i + 1) % 50 == 0 or (i + 1) == total_puzzles:
                 with open(ckpt_path, "w") as f:
                     json.dump(
                         {
-                            "run_timestamp": run_ts,
+                            "run_id": self.run_id,
                             "last_index": i + 1,
                             "results": evaluated_rows,
                         },
@@ -188,7 +223,7 @@ class ResumableBenchmarkRunner:
         pbar.close()
         session.close()
 
-        # Write final Parquet result table under original run datestamp
+        # Write final Parquet result table
         res_table = pa.Table.from_pylist(evaluated_rows)
         pq.write_table(res_table, result_path, compression="zstd")
 
