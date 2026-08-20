@@ -1,19 +1,62 @@
-# chess-ds: Chess Data Science & Engine Analytics Platform
+# `chess-ds`: Pedagogical Chess Data Science & Engine Analytics Platform
 
-A high-performance data science platform for chess analytics, puzzle benchmarking, opening novelty discovery, and neural vs. alpha-beta engine comparisons.
+> [!NOTE]
+> **Pedagogical Purpose**: This repository is designed as an educational, pedagogical research platform demonstrating modern chess data science, high-performance engine benchmarking, neural network vs. alpha-beta search paradigms, and distributed data pipelines.
 
-## Features
+---
 
-- **Engine Benchmarking Harness**: Orchestrates **Lc0 (Tensor Core GPU)**, **Stockfish 18 (AVX-512)**, and **Reckless 0.9.0** over custom FENs and massive puzzle datasets.
-- **Data Pipelines**: High-speed querying of multi-million puzzle/game datasets using **DuckDB**, **Polars**, and **Pandas**.
-- **Tablebase Synergy**: Integrated Syzygy 6-piece endgame tablebases.
+## 1. Core Architecture & Concepts Demonstrated
 
-## Quick Start
+1. **Neural MCTS vs. Alpha-Beta Evaluation**:
+   - **Leela Chess Zero (`Lc0`)**: GPU-accelerated Monte Carlo Tree Search (MCTS) utilizing deep Policy-Value Transformer neural networks (`BT4-332.pb`) running on Tensor Cores.
+   - **Stockfish 18 & Reckless 0.9.0**: Highly optimized CPU Alpha-Beta search engines powered by AVX-512 NNUE evaluation.
 
+2. **Large-Scale Data Engineering**:
+   - **Live Zstandard Streaming**: Direct decompression and on-the-fly filtering of the multi-million puzzle/game database from `database.lichess.org` over HTTP without saving massive intermediate uncompressed files.
+   - **Columnar Storage (Parquet / Arrow)**: Partitioned, compressed shards optimized for zero-copy queries.
+   - **DuckDB Analytics**: Embedded analytical SQL queries for calculating engine agreement, solve accuracy, Average Centipawn Loss (ACPL), and depth distributions.
+
+3. **Fault-Tolerant Resumable Execution**:
+   - Automated checkpointing every 50 positions to allow interrupted benchmarks to resume immediately without duplicate computation.
+
+4. **Tablebase Synergy**:
+   - Integrated Syzygy 6-piece endgame tablebase probing (`.rtbw` / `.rtbz`).
+
+---
+
+## 2. Quick Start
+
+### Installation & Environment
 ```bash
-# Activate virtual environment
-source .venv/bin/activate
+cd /home/jaipkapoor99/Code/chess-ds
 
-# Run tests
-pytest
+# Synchronize virtual environment with uv
+uv sync
+
+# Run automated tests
+.venv/bin/pytest -v
 ```
+
+### Stream Puzzles from Official Lichess Database
+```bash
+# Stream 5,000 Super-GM puzzles (Rating >= 2500) live into Parquet shards
+.venv/bin/python -m chess_ds.cli fetch --min-rating 2500 --total 5000 --shard-size 1000
+```
+
+### Run Resumable Engine Benchmark
+```bash
+# Evaluate all shards across Lc0, Reckless, and Stockfish (500ms per position)
+.venv/bin/python -m chess_ds.cli eval --movetime 500
+```
+
+### Display DuckDB Consolidated Analytics
+```bash
+.venv/bin/python -m chess_ds.cli summary
+```
+
+---
+
+## 3. Code Quality & Typing
+- **Linter & Formatter**: `ruff`
+- **Type Checker**: `pyrefly`
+- **Testing**: `pytest`
