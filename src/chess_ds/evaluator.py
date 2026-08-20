@@ -1,0 +1,199 @@
+"""Distributed and Resumable Multi-Engine Benchmark Pipeline.
+Features:
+- Checkpointing & Automatic Resume on interruption.
+- Rich tqdm progress bars with live accuracy, speed (NPS), and depth telemetry.
+- Parquet shard streaming and DuckDB analytical rollups.
+"""
+
+import json
+from pathlib import Path
+
+import duckdb
+import polars as pl
+import pyarrow as pa
+import pyarrow.parquet as pq
+from tqdm import tqdm
+
+from chess_ds.engines import EngineSession
+
+ROOT_DIR = Path(__file__).resolve().parent.parent.parent
+DATA_DIR = ROOT_DIR / "data"
+SHARDS_DIR = DATA_DIR / "shards"
+RESULTS_DIR = DATA_DIR / "results"
+CHECKPOINTS_DIR = DATA_DIR / "checkpoints"
+
+
+class ResumableBenchmarkRunner:
+    """Orchestrates multi-engine evaluation across Parquet shards with state checkpointing."""
+
+    def __init__(self, movetime_ms: int = 500):
+        self.movetime_ms = movetime_ms
+        RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+        CHECKPOINTS_DIR.mkdir(parents=True, exist_ok=True)
+
+    def get_checkpoint_path(self, engine_name: str, shard_path: Path) -> Path:
+        safe_name = engine_name.lower().replace(" ", "_").replace(".", "_")
+        return CHECKPOINTS_DIR / f"{safe_name}_{shard_path.stem}.json"
+
+    def get_result_shard_path(self, engine_name: str, shard_path: Path) -> Path:
+        safe_name = engine_name.lower().replace(" ", "_").replace(".", "_")
+        return RESULTS_DIR / f"eval_{safe_name}_{shard_path.stem}.parquet"
+
+    def evaluate_shard_with_engine(
+        self,
+        engine_name: str,
+        shard_path: Path,
+    ) -> dict:
+        """Evaluates a single parquet shard with state resumption."""
+        result_path = self.get_result_shard_path(engine_name, shard_path)
+        ckpt_path = self.get_checkpoint_path(engine_name, shard_path)
+
+        # Check if entire shard was already evaluated
+        if result_path.exists():
+            print(f"[{engine_name}] Shard {shard_path.name} already fully evaluated. Skipping.")
+            return {"status": "already_done", "path": str(result_path)}
+
+        # Load input shard table
+        df = pl.read_parquet(shard_path)
+        total_puzzles = len(df)
+
+        # Check resume checkpoint
+        evaluated_rows: list[dict] = []
+        start_idx = 0
+        if ckpt_path.exists():
+            try:
+                with open(ckpt_path, "r") as f:
+                    ckpt = json.load(f)
+                    start_idx = ckpt.get("last_index", 0)
+                    evaluated_rows = ckpt.get("results", [])
+                print(
+                    f"[{engine_name}] ↺ Resuming {shard_path.name} from puzzle index {start_idx}/{total_puzzles}..."
+                )
+            except json.JSONDecodeError, OSError, KeyError:
+                start_idx = 0
+                evaluated_rows = []
+
+        session = EngineSession(engine_name)
+        solved_count = sum(1 for r in evaluated_rows if r.get("is_correct", False))
+
+        pbar = tqdm(
+            total=total_puzzles,
+            initial=start_idx,
+            desc=f"{engine_name} ({shard_path.stem})",
+            unit="pos",
+            dynamic_ncols=True,
+        )
+
+        rows_iter = df.iter_rows(named=True)
+        # Skip already evaluated rows
+        for _ in range(start_idx):
+            next(rows_iter, None)
+
+        for i, row in enumerate(rows_iter, start=start_idx):
+            fen = row["fen"]
+            solution = row["solution"]
+            puzzle_id = row["puzzle_id"]
+            rating = row["rating"]
+
+            bm, depth, nps, elapsed = session.evaluate_fen(fen, movetime_ms=self.movetime_ms)
+            is_correct = bm == solution
+            if is_correct:
+                solved_count += 1
+
+            evaluated_rows.append(
+                {
+                    "puzzle_id": puzzle_id,
+                    "fen": fen,
+                    "solution": solution,
+                    "engine_move": bm,
+                    "is_correct": is_correct,
+                    "depth": depth,
+                    "nps": nps,
+                    "elapsed": elapsed,
+                    "rating": rating,
+                    "engine": engine_name,
+                }
+            )
+
+            acc = (solved_count / (i + 1)) * 100.0
+            pbar.set_postfix(
+                {
+                    "Acc": f"{acc:.1f}%",
+                    "NPS": f"{nps:,.0f}" if nps > 0 else "N/A",
+                    "Depth": depth,
+                    "Move": bm,
+                }
+            )
+            pbar.update(1)
+
+            # Checkpoint every 50 positions
+            if (i + 1) % 50 == 0 or (i + 1) == total_puzzles:
+                with open(ckpt_path, "w") as f:
+                    json.dump({"last_index": i + 1, "results": evaluated_rows}, f)
+
+        pbar.close()
+        session.close()
+
+        # Write final Parquet result table
+        res_table = pa.Table.from_pylist(evaluated_rows)
+        pq.write_table(res_table, result_path, compression="zstd")
+
+        # Remove temporary checkpoint on successful completion
+        if ckpt_path.exists():
+            ckpt_path.unlink()
+
+        return {
+            "status": "completed",
+            "shard": shard_path.name,
+            "engine": engine_name,
+            "total": total_puzzles,
+            "solved": solved_count,
+            "accuracy": (solved_count / total_puzzles) * 100.0,
+            "result_path": str(result_path),
+        }
+
+    def run_suite(self, shards: list[Path], engines: list[str] | None = None) -> None:
+        """Executes full benchmark suite across shards and engines."""
+        if engines is None:
+            engines = ["Lc0 v0.32.1", "Reckless 0.9.0", "Stockfish 18"]
+
+        print("\n=================================================================")
+        print("  STARTING MULTI-ENGINE RESUMABLE BENCHMARK SUITE")
+        print(f"  Total Shards: {len(shards)} | Engines: {len(engines)}")
+        print("=================================================================\n")
+
+        for engine in engines:
+            for shard in shards:
+                self.evaluate_shard_with_engine(engine, shard)
+
+        self.generate_analytics_summary()
+
+    def generate_analytics_summary(self) -> None:
+        """Runs DuckDB analytical queries across all result parquet files."""
+        result_files = list(RESULTS_DIR.glob("eval_*.parquet"))
+        if not result_files:
+            print("No evaluation results found.")
+            return
+
+        con = duckdb.connect()
+        query = """
+        SELECT 
+            engine,
+            COUNT(*) as total_puzzles,
+            SUM(CASE WHEN is_correct THEN 1 ELSE 0 END) as solved,
+            ROUND(AVG(CASE WHEN is_correct THEN 1.0 ELSE 0.0 END) * 100.0, 2) as accuracy_pct,
+            ROUND(AVG(nps), 0) as avg_nps,
+            ROUND(AVG(depth), 1) as avg_depth,
+            ROUND(AVG(elapsed), 3) as avg_sec_per_pos,
+            ROUND(AVG(rating), 0) as avg_puzzle_rating
+        FROM read_parquet('data/results/eval_*.parquet')
+        GROUP BY engine
+        ORDER BY accuracy_pct DESC, avg_nps DESC
+        """
+        df_summary = con.execute(query).pl()
+
+        print("\n" + "=" * 110)
+        print("                         CONSOLIDATED ENGINE ANALYTICS SUMMARY")
+        print("=" * 110)
+        print(df_summary)
+        print("=" * 110)

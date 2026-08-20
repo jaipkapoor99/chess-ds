@@ -87,12 +87,12 @@ class EngineSession:
                 if "depth" in parts:
                     try:
                         depth = int(parts[parts.index("depth") + 1])
-                    except (ValueError, IndexError):
+                    except ValueError, IndexError:
                         pass
                 if "nps" in parts:
                     try:
                         nps = float(parts[parts.index("nps") + 1])
-                    except (ValueError, IndexError):
+                    except ValueError, IndexError:
                         pass
             if "bestmove" in l:
                 parts = l.split()
