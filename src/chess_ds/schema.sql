@@ -126,7 +126,38 @@ CREATE TABLE IF NOT EXISTS game_moves (
 );
 
 -- -----------------------------------------------------------------------------
--- 4. PERFORMANCE & ANALYTICAL INDEXES
+-- 4. ENGINE VS ENGINE MATCH RELATIONS (3NF Normalized)
+-- -----------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS engine_matches (
+    match_id          VARCHAR PRIMARY KEY,    -- e.g. 'match_20260820_131500'
+    engine1_id        VARCHAR NOT NULL REFERENCES engines(engine_id),
+    engine2_id        VARCHAR NOT NULL REFERENCES engines(engine_id),
+    time_control      VARCHAR NOT NULL,       -- e.g. '10+0.1', '60+1'
+    total_rounds      INTEGER NOT NULL,
+    concurrency       INTEGER DEFAULT 1,
+    engine1_score     DOUBLE DEFAULT 0.0,
+    engine2_score     DOUBLE DEFAULT 0.0,
+    draws             INTEGER DEFAULT 0,
+    pgn_path          VARCHAR,
+    started_at        TIMESTAMP NOT NULL,
+    completed_at      TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS engine_match_games (
+    game_id           VARCHAR PRIMARY KEY,    -- e.g. 'match_20260820_131500_g1'
+    match_id          VARCHAR NOT NULL REFERENCES engine_matches(match_id),
+    round_number      INTEGER NOT NULL,
+    white_engine_id   VARCHAR NOT NULL REFERENCES engines(engine_id),
+    black_engine_id   VARCHAR NOT NULL REFERENCES engines(engine_id),
+    result            VARCHAR(7) NOT NULL,    -- '1-0', '0-1', '1/2-1/2', '*'
+    total_plies       INTEGER NOT NULL,
+    termination       VARCHAR,                -- 'Adjudication', 'Checkmate', 'Time forfeit'
+    played_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- -----------------------------------------------------------------------------
+-- 5. PERFORMANCE & ANALYTICAL INDEXES
 -- -----------------------------------------------------------------------------
 CREATE INDEX IF NOT EXISTS idx_puzzle_eval_correct ON puzzle_evaluations(is_correct);
 CREATE INDEX IF NOT EXISTS idx_puzzle_eval_run ON puzzle_evaluations(run_id);
@@ -135,3 +166,5 @@ CREATE INDEX IF NOT EXISTS idx_games_players ON games(white_player_id, black_pla
 CREATE INDEX IF NOT EXISTS idx_games_eco ON games(eco);
 CREATE INDEX IF NOT EXISTS idx_moves_judgment ON game_moves(judgment);
 CREATE INDEX IF NOT EXISTS idx_moves_fen ON game_moves(fen);
+CREATE INDEX IF NOT EXISTS idx_matches_engines ON engine_matches(engine1_id, engine2_id);
+CREATE INDEX IF NOT EXISTS idx_match_games_match ON engine_match_games(match_id);
