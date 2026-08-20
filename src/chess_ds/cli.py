@@ -53,8 +53,9 @@ def main():
     )
     run_parser.add_argument(
         "--wandb",
-        action="store_true",
-        help="Enable live Weights & Biases telemetry logging",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable/disable live Weights & Biases telemetry logging (default: enabled)",
     )
     run_parser.add_argument(
         "--wandb-project",

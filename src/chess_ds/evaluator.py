@@ -337,7 +337,7 @@ class ResumableBenchmarkRunner:
             ROUND(AVG(CASE WHEN is_correct THEN 1.0 ELSE 0.0 END) * 100.0, 2) as accuracy_pct,
             ROUND(AVG(nps), 0) as avg_nps,
             ROUND(AVG(depth), 1) as avg_depth,
-            ROUND(AVG(elapsed), 3) as avg_sec_per_pos,
+            ROUND(AVG(elapsed_seconds), 3) as avg_sec_per_pos,
             ROUND(AVG(rating), 0) as avg_puzzle_rating
         FROM read_parquet('data/results/eval_*.parquet')
         GROUP BY engine
