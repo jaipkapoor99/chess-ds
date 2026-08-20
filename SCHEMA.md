@@ -1,4 +1,4 @@
-# Database Relational Architecture & 3NF Schema
+# ♟️ Database Relational Architecture & 3NF Schema
 
 This document details the Strict Third Normal Form (3NF) relational architecture for the `chess-ds` analytical platform.
 

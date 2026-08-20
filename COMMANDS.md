@@ -1,4 +1,4 @@
-# Terminal Commands & CLI Reference
+# ♟️ Terminal Commands & CLI Reference
 
 This document provides clean, repository-relative terminal commands for operating the `chess-ds` platform.
 
