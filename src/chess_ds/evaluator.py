@@ -129,6 +129,9 @@ class ResumableBenchmarkRunner:
         engine_name: str,
         shard_path: Path,
         max_puzzles: int | None = None,
+        session: EngineSession | None = None,
+        pbar: tqdm | None = None,
+        global_state: dict | None = None,
     ) -> dict:
         """Evaluates a parquet shard with state resumption keyed by self.run_id."""
         result_path = self.get_result_shard_path(engine_name, shard_path)
@@ -148,6 +151,8 @@ class ResumableBenchmarkRunner:
             df = df.slice(0, max_puzzles)
 
         total_puzzles = len(df)
+        if total_puzzles == 0:
+            return {"engine": engine_name, "shard": shard_path.name, "status": "empty"}
 
         # Check resume checkpoint
         evaluated_rows: list[dict] = []
@@ -166,30 +171,38 @@ class ResumableBenchmarkRunner:
                 start_idx = 0
                 evaluated_rows = []
 
-        session = EngineSession(engine_name)
+        local_session = session or EngineSession(engine_name)
         solved_count = sum(1 for r in evaluated_rows if r.get("is_correct", False))
 
-        # Vibrant engine-specific colors
-        engine_colors = {
-            "lc0": "cyan",
-            "stockfish": "green",
-            "reckless": "magenta",
-        }
-        bar_color = "yellow"
-        for k, col in engine_colors.items():
-            if k in engine_name.lower():
-                bar_color = col
-                break
+        if global_state is None:
+            global_state = {"total_processed": 0, "total_solved": 0}
 
-        pbar = tqdm(
-            total=total_puzzles,
-            initial=start_idx,
-            desc=f"\033[1;36m{engine_name}\033[0m \033[2m({shard_path.stem})\033[0m",
-            unit="pos",
-            colour=bar_color,
-            dynamic_ncols=True,
-            bar_format="{l_bar}{bar}| \033[1;37m{n_fmt}/{total_fmt}\033[0m [\033[33m{elapsed}<{remaining}\033[0m, \033[32m{rate_fmt}\033[0m{postfix}]",
-        )
+        local_pbar = None
+        if pbar is None:
+            engine_colors = {
+                "lc0": "cyan",
+                "stockfish": "green",
+                "reckless": "magenta",
+                "pawnocchio": "yellow",
+            }
+            bar_color = "yellow"
+            for k, col in engine_colors.items():
+                if k in engine_name.lower():
+                    bar_color = col
+                    break
+
+            local_pbar = tqdm(
+                total=total_puzzles,
+                initial=start_idx,
+                desc=f"\033[1;36m{engine_name}\033[0m \033[2m({shard_path.stem})\033[0m",
+                unit="pos",
+                colour=bar_color,
+                dynamic_ncols=True,
+                bar_format="{l_bar}{bar}| \033[1;37m{n_fmt}/{total_fmt}\033[0m [\033[33m{elapsed}<{remaining}\033[0m, \033[32m{rate_fmt}\033[0m{postfix}]",
+            )
+            active_pbar = local_pbar
+        else:
+            active_pbar = pbar
 
         rows_iter = df.iter_rows(named=True)
         for _ in range(start_idx):
@@ -201,10 +214,12 @@ class ResumableBenchmarkRunner:
             puzzle_id = row["puzzle_id"]
             rating = row["rating"]
 
-            bm, depth, nps, elapsed = session.evaluate_fen(fen, movetime_ms=self.movetime_ms)
+            bm, depth, nps, elapsed = local_session.evaluate_fen(fen, movetime_ms=self.movetime_ms)
             is_correct = bm == solution
             if is_correct:
                 solved_count += 1
+                global_state["total_solved"] += 1
+            global_state["total_processed"] += 1
 
             # Convert moves to Standard Algebraic Notation (SAN)
             from chess_ds.board import uci_to_san
@@ -230,7 +245,9 @@ class ResumableBenchmarkRunner:
             }
             evaluated_rows.append(record)
 
-            acc = (solved_count / (i + 1)) * 100.0
+            total_proc = global_state["total_processed"]
+            total_solv = global_state["total_solved"]
+            acc = (total_solv / total_proc) * 100.0 if total_proc > 0 else 0.0
             acc_color = (
                 "\033[1;32m" if acc >= 98.0 else ("\033[1;33m" if acc >= 90.0 else "\033[1;31m")
             )
@@ -240,15 +257,15 @@ class ResumableBenchmarkRunner:
                 else (f"{nps / 1e3:.0f}k" if nps >= 1e3 else f"{nps:.0f}")
             )
 
-            pbar.set_postfix_str(
+            active_pbar.set_postfix_str(
                 f"Acc: {acc_color}{acc:.1f}%\033[0m | Depth: \033[1;35m{depth}\033[0m | NPS: \033[1;33m{nps_str}\033[0m | Move: \033[1;37m{bm_san}\033[0m"
             )
-            pbar.update(1)
+            active_pbar.update(1)
 
             if self.wandb_logger:
                 self.wandb_logger.log_position_metrics(
                     engine=engine_name,
-                    index=i + 1,
+                    index=total_proc,
                     is_correct=is_correct,
                     running_accuracy=acc,
                     depth=depth,
@@ -269,8 +286,11 @@ class ResumableBenchmarkRunner:
                         f,
                     )
 
-        pbar.close()
-        session.close()
+        if local_pbar is not None:
+            local_pbar.close()
+
+        if session is None:
+            local_session.close()
 
         # Write final Parquet result table
         res_table = pa.Table.from_pylist(evaluated_rows)
@@ -286,7 +306,7 @@ class ResumableBenchmarkRunner:
             "engine": engine_name,
             "total": total_puzzles,
             "solved": solved_count,
-            "accuracy": (solved_count / total_puzzles) * 100.0,
+            "accuracy": (solved_count / total_puzzles) * 100.0 if total_puzzles > 0 else 0.0,
             "result_path": str(result_path),
         }
 
@@ -297,9 +317,14 @@ class ResumableBenchmarkRunner:
         concurrency: int = 1,
         total_limit: int | None = None,
     ) -> None:
-        """Executes benchmark suite across shards and engines with dynamic concurrency and exact position limits."""
+        """Executes benchmark suite across shards and engines with dynamic concurrency and global progress tracking."""
         if engines is None:
-            engines = ["Lc0 v0.32.1", "Stockfish 18", "Reckless 0.9.0"]
+            engines = [
+                "Stockfish 18",
+                "Pawnocchio 2.0.1",
+                "Reckless 0.9.0",
+                "Lc0 v0.32.1",
+            ]
 
         print("\n=================================================================")
         print("  STARTING MULTI-ENGINE RESUMABLE BENCHMARK SUITE")
@@ -309,24 +334,60 @@ class ResumableBenchmarkRunner:
 
         from concurrent.futures import ThreadPoolExecutor
 
+        engine_colors = {
+            "lc0": "cyan",
+            "stockfish": "green",
+            "reckless": "magenta",
+            "pawnocchio": "yellow",
+        }
+
         def run_for_engine(engine_name: str) -> None:
+            session = EngineSession(engine_name)
             remaining = total_limit
-            for shard in shards:
-                if remaining is not None and remaining <= 0:
+            global_state = {"total_processed": 0, "total_solved": 0}
+
+            bar_color = "yellow"
+            for k, col in engine_colors.items():
+                if k in engine_name.lower():
+                    bar_color = col
                     break
 
-                # Check shard size with min_rating filter
-                shard_df = pl.read_parquet(shard)
-                if self.min_rating is not None and "rating" in shard_df.columns:
-                    shard_df = shard_df.filter(pl.col("rating") >= self.min_rating)
-                shard_len = len(shard_df)
-                if shard_len == 0:
-                    continue
+            pbar = tqdm(
+                total=total_limit or 10000,
+                desc=f"\033[1;36m{engine_name}\033[0m",
+                unit="pos",
+                colour=bar_color,
+                dynamic_ncols=True,
+                bar_format="{l_bar}{bar}| \033[1;37m{n_fmt}/{total_fmt}\033[0m [\033[33m{elapsed}<{remaining}\033[0m, \033[32m{rate_fmt}\033[0m{postfix}]",
+            )
 
-                eval_count = min(shard_len, remaining) if remaining is not None else shard_len
-                self.evaluate_shard_with_engine(engine_name, shard, max_puzzles=eval_count)
-                if remaining is not None:
-                    remaining -= eval_count
+            try:
+                for shard in shards:
+                    if remaining is not None and remaining <= 0:
+                        break
+
+                    # Check shard size with min_rating filter
+                    shard_df = pl.read_parquet(shard)
+                    if self.min_rating is not None and "rating" in shard_df.columns:
+                        shard_df = shard_df.filter(pl.col("rating") >= self.min_rating)
+                    shard_len = len(shard_df)
+                    if shard_len == 0:
+                        continue
+
+                    eval_count = min(shard_len, remaining) if remaining is not None else shard_len
+                    self.evaluate_shard_with_engine(
+                        engine_name,
+                        shard,
+                        max_puzzles=eval_count,
+                        session=session,
+                        pbar=pbar,
+                        global_state=global_state,
+                    )
+                    if remaining is not None:
+                        remaining -= eval_count
+            finally:
+                pbar.close()
+                session.close()
 
         if concurrency > 1:
             with ThreadPoolExecutor(max_workers=concurrency) as executor:
