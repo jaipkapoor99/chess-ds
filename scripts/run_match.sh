@@ -17,16 +17,23 @@ cd "${REPO_ROOT}"
 # Arguments & Defaults
 ROUNDS="${1:-10}"
 TC="${2:-10+0.1}"
-CONCURRENCY="${3:-2}"
 MATCH_TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 MATCH_ID="match_${MATCH_TIMESTAMP}"
+
+# Odd rounds warning for color balance
+if (( ROUNDS % 2 != 0 )); then
+  echo ""
+  echo "⚠️  [WARNING] Number of rounds (${ROUNDS}) is odd!"
+  echo "    In head-to-head engine matches, rounds should ideally be even"
+  echo "    so each engine plays an equal number of games as White and Black."
+  echo ""
+fi
 
 # Output paths
 MATCH_DIR="data/results/matches"
 mkdir -p "${MATCH_DIR}"
 PGN_OUT="${MATCH_DIR}/${MATCH_ID}.pgn"
 TELEMETRY_LOG="${MATCH_DIR}/${MATCH_ID}_telemetry.log"
-TELEMETRY_SUMMARY="${MATCH_DIR}/${MATCH_ID}_summary.txt"
 
 # Engine Binaries
 CUTECHESS="./engines/cutechess-cli"
@@ -36,11 +43,10 @@ LC0_WEIGHTS="./weights/BT4-332.pb"
 SYZYGY="./syzygy"
 
 echo "================================================================="
-echo "  STARTING ENGINE VS ENGINE HEAD-TO-HEAD MATCH"
+echo "  STARTING ENGINE VS ENGINE HEAD-TO-HEAD MATCH (2 ENGINES)"
 echo "  Match ID:       ${MATCH_ID}"
 echo "  Rounds:         ${ROUNDS} games"
 echo "  Time Control:   ${TC}"
-echo "  Concurrency:    ${CONCURRENCY}"
 echo "  Engine 1:       Stockfish 18 (AVX-512 CPU)"
 echo "  Engine 2:       Lc0 v0.32.1 (RTX 5090 GPU)"
 echo "  PGN Target:     ${PGN_OUT}"
@@ -55,19 +61,18 @@ echo "================================================================="
   echo "ENGINE2=Lc0 v0.32.1"
   echo "ROUNDS=${ROUNDS}"
   echo "TIME_CONTROL=${TC}"
-  echo "CONCURRENCY=${CONCURRENCY}"
   echo "--- LIVE MATCH TELEMETRY ---"
 } > "${TELEMETRY_LOG}"
 
-# Run cutechess-cli tournament with live tee to dedicated telemetry log
+# Run cutechess-cli tournament sequentially with live tee to dedicated telemetry log
 "${CUTECHESS}" \
-  -engine name="Stockfish 18" cmd="${STOCKFISH}" proto=uci option.Threads=4 option.Hash=2048 option.SyzygyPath="${SYZYGY}" \
+  -engine name="Stockfish 18" cmd="${STOCKFISH}" proto=uci option.Threads=8 option.Hash=4096 option.SyzygyPath="${SYZYGY}" \
   -engine name="Lc0 v0.32.1" cmd="${LC0}" proto=uci arg="--weights=${LC0_WEIGHTS}" arg="--threads=2" option.SyzygyPath="${SYZYGY}" \
   -each proto=uci tc="${TC}" \
   -rounds "${ROUNDS}" \
   -games 2 \
   -repeat \
-  -concurrency "${CONCURRENCY}" \
+  -concurrency 1 \
   -draw movenumber=40 movecount=5 score=10 \
   -resign movecount=3 score=600 \
   -pgnout "${PGN_OUT}" \

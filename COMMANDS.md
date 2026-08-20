@@ -112,22 +112,27 @@ uv run python -m chess_ds.cli export-csv \
 
 ______________________________________________________________________
 
-## 5. Direct Engine Match Commands (Cutechess-CLI)
+## 5. Engine vs. Engine Matches (`cutechess-cli`)
 
-### Run 10-game match: Lc0 vs Stockfish 18
+A dedicated, standalone bash script runs head-to-head matches between 2 engines sequentially (Stockfish 18 vs. Lc0 v0.32.1) without any Python dependencies:
 
 ```bash
-./engines/cutechess-cli \
-  -engine name=Lc0 cmd=./engines/lc0 dir=./engines option.WeightsFile=./weights/BT4-332.pb option.Threads=2 option.SyzygyPath=./syzygy \
-  -engine name=Stockfish18 cmd=./engines/stockfish-ubuntu-x86-64-avx512icl dir=./engines option.Threads=8 option.Hash=8192 option.SyzygyPath=./syzygy \
-  -each proto=uci tc=10+0.2 \
-  -rounds 10 \
-  -repeat \
-  -concurrency 1 \
-  -draw movenumber=40 movecount=8 score=10 \
-  -resign movecount=4 score=700 \
-  -pgnout ./data/results/match_lc0_vs_sf.pgn
+./scripts/run_match.sh [ROUNDS] [TIME_CONTROL]
 ```
+
+### Run a 10-Game Blitz Match (Even rounds for White/Black balance)
+
+```bash
+./scripts/run_match.sh 10 "10+0.1"
+```
+
+> [!NOTE]
+> If an odd number of rounds is passed (e.g. `./scripts/run_match.sh 7`), the script issues a warning recommending an even number so both engines receive equal games as White and Black.
+
+Outputs:
+
+- **PGN Table**: `data/results/matches/match_YYYYMMDD_HHMMSS.pgn`
+- **Dedicated Telemetry Log**: `data/results/matches/match_YYYYMMDD_HHMMSS_telemetry.log`
 
 ### Run 10-game match: Lc0 vs Reckless 0.9.0
 

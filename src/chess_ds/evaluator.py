@@ -109,7 +109,6 @@ class ResumableBenchmarkRunner:
         max_puzzles: int | None = None,
     ) -> dict:
         """Evaluates a parquet shard with state resumption keyed by self.run_id."""
-        safe_name = engine_name.lower().replace(" ", "_").replace(".", "_")
         result_path = self.get_result_shard_path(engine_name, shard_path)
         ckpt_path = self.get_checkpoint_path(engine_name, shard_path)
 
@@ -185,19 +184,10 @@ class ResumableBenchmarkRunner:
                 solved_count += 1
 
             # Convert moves to Standard Algebraic Notation (SAN)
-            from chess_ds.board import render_board_svg, uci_to_san
+            from chess_ds.board import uci_to_san
 
             sol_san = uci_to_san(fen, solution)
             bm_san = uci_to_san(fen, bm)
-
-            # Auto-render diagram for analysis if engine misses the puzzle
-            if not is_correct and i < 20:
-                diag_dir = RESULTS_DIR / "diagrams"
-                diag_dir.mkdir(exist_ok=True)
-                diag_path = diag_dir / f"{self.run_id}_{puzzle_id}_{safe_name}.svg"
-                render_board_svg(
-                    fen, solution_uci=solution, engine_move_uci=bm, output_path=diag_path
-                )
 
             record = {
                 "run_id": self.run_id,
