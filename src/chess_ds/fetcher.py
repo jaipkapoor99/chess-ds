@@ -102,6 +102,22 @@ class LichessFetcher:
                 }
 
     @classmethod
+    def get_existing_puzzle_ids(cls) -> set[str]:
+        """Loads all puzzle IDs already saved in local Parquet shards."""
+        existing_ids = set()
+        if not SHARDS_DIR.exists():
+            return existing_ids
+
+        for shard_file in SHARDS_DIR.glob("*.parquet"):
+            try:
+                table = pq.read_table(shard_file, columns=["puzzle_id"])
+                existing_ids.update(table["puzzle_id"].to_pylist())
+            except pa.ArrowInvalid, OSError:
+                continue
+
+        return existing_ids
+
+    @classmethod
     def build_live_parquet_shards(
         cls,
         min_rating: int = 2500,
@@ -109,10 +125,16 @@ class LichessFetcher:
         total_puzzles: int = 10000,
         shard_size: int = 1000,
     ) -> list[Path]:
-        """Streams live from Lichess and saves partitioned Parquet shards."""
+        """Streams live from Lichess and saves partitioned Parquet shards, skipping duplicates."""
         SHARDS_DIR.mkdir(parents=True, exist_ok=True)
+        existing_ids = cls.get_existing_puzzle_ids()
+        if existing_ids:
+            print(
+                f"✓ Found {len(existing_ids):,} existing puzzles locally. Skipping duplicates during sync..."
+            )
+
         print(
-            f"\n📡 Streaming {total_puzzles:,} ultra-hard puzzles (Rating >= {min_rating}) live from official Lichess repository..."
+            f"\n📡 Streaming up to {total_puzzles:,} new ultra-hard puzzles (Rating >= {min_rating}) live from official Lichess repository..."
         )
 
         schema = pa.schema(
@@ -126,16 +148,23 @@ class LichessFetcher:
             ]
         )
 
+        # Determine next shard index based on existing shards
+        existing_shards = sorted(SHARDS_DIR.glob("lichess_shard_*.parquet"))
+        shard_idx = len(existing_shards)
         shards_created: list[Path] = []
         current_rows: list[dict] = []
-        shard_idx = 0
 
-        pbar = tqdm(total=total_puzzles, desc="Streaming Lichess Database", unit="pos")
+        pbar = tqdm(total=total_puzzles, desc="Syncing Lichess Puzzles", unit="new")
 
         for puzzle in cls.stream_official_database(
             min_rating=min_rating, popularity_min=popularity_min
         ):
+            pid = puzzle["puzzle_id"]
+            if pid in existing_ids:
+                continue
+
             current_rows.append(puzzle)
+            existing_ids.add(pid)
             pbar.update(1)
 
             if len(current_rows) >= shard_size:
@@ -157,6 +186,6 @@ class LichessFetcher:
 
         pbar.close()
         print(
-            f"✓ Successfully created {len(shards_created)} fresh Parquet shards directly from official Lichess database.\n"
+            f"✓ Sync complete! Created {len(shards_created)} new Parquet shards ({len(existing_ids):,} total puzzles in local store).\n"
         )
         return shards_created
