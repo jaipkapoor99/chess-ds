@@ -112,6 +112,31 @@ def enrich_and_export_pgn(input_pgn_path: Path, output_pgn_path: Path | None = N
     return target_path
 
 
+def export_pgn_from_db(match_id: str, output_pgn_path: Path) -> Path:
+    """Exports and reconstructs an annotated PGN file directly from the database Parquet tables."""
+    games_parquet = RESULTS_DIR / f"engine_match_games_{match_id}.parquet"
+    if not games_parquet.exists():
+        # Search all match game parquets
+        all_games = list(RESULTS_DIR.glob("engine_match_games_*.parquet"))
+        matching = [f for f in all_games if match_id in f.name]
+        if not matching:
+            raise FileNotFoundError(f"No match database found for Match ID: {match_id}")
+        games_parquet = matching[0]
+
+    df = pl.read_parquet(games_parquet)
+    if "moves_pgn" not in df.columns:
+        raise ValueError("Database table does not contain stored moves_pgn column.")
+
+    output_pgn_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_pgn_path, "w", encoding="utf-8") as f_out:
+        for row in df.iter_rows(named=True):
+            pgn_str = row.get("moves_pgn", "")
+            if pgn_str:
+                f_out.write(pgn_str.strip() + "\n\n")
+
+    return output_pgn_path
+
+
 def ingest_match_pgn(
     pgn_path: Path,
     match_id: str,
@@ -119,17 +144,13 @@ def ingest_match_pgn(
     engine2: str,
     time_control: str,
     total_rounds: int,
-) -> tuple[Path, Path, Path]:
-    """Parses match PGN file, enriches telemetry tags, and writes 3NF relational tables:
-    - engine_matches: data/results/matches/engine_matches_{match_id}.parquet
-    - engine_match_games: data/results/matches/engine_match_games_{match_id}.parquet
-    - enriched_pgn: data/results/matches/{match_id}_annotated.pgn
+    remove_raw_pgn: bool = True,
+) -> tuple[Path, Path]:
+    """Parses match PGN file, stores games with full telemetry into 3NF Parquet DB tables,
+    and removes the temporary raw PGN to ensure database-first persistence.
     """
     if not pgn_path.exists():
         raise FileNotFoundError(f"PGN file not found: {pgn_path}")
-
-    # 1. Generate enriched PGN with telemetry tags
-    enriched_pgn_path = enrich_and_export_pgn(pgn_path)
 
     games_records = []
     e1_score = 0.0
@@ -142,7 +163,7 @@ def ingest_match_pgn(
     e1_lower = engine1.lower()
     e2_lower = engine2.lower()
 
-    with open(enriched_pgn_path, encoding="utf-8") as f:
+    with open(pgn_path, encoding="utf-8") as f:
         while True:
             game = chess.pgn.read_game(f)
             if game is None:
@@ -190,6 +211,51 @@ def ingest_match_pgn(
                 e2_score += 0.5
                 draws += 1
 
+            # Extract per-game telemetry
+            w_depths, b_depths = [], []
+            w_times, b_times = [], []
+            is_white_turn = True
+            if "FEN" in game.headers:
+                try:
+                    init_board = chess.Board(game.headers["FEN"])
+                    is_white_turn = init_board.turn == chess.WHITE
+                except Exception:
+                    pass
+
+            for node in game.mainline():
+                comment = node.comment
+                _ev, d, t = parse_move_telemetry(comment)
+                if is_white_turn:
+                    if d is not None:
+                        w_depths.append(d)
+                    if t is not None:
+                        w_times.append(t)
+                else:
+                    if d is not None:
+                        b_depths.append(d)
+                    if t is not None:
+                        b_times.append(t)
+                is_white_turn = not is_white_turn
+
+            w_avg_d = sum(w_depths) / len(w_depths) if w_depths else None
+            b_avg_d = sum(b_depths) / len(b_depths) if b_depths else None
+            w_avg_t = sum(w_times) / len(w_times) if w_times else None
+            b_avg_t = sum(b_times) / len(b_times) if b_times else None
+
+            # Add telemetry headers to game
+            if w_avg_d is not None:
+                game.headers["WhiteAvgDepth"] = f"{w_avg_d:.1f}"
+            if b_avg_d is not None:
+                game.headers["BlackAvgDepth"] = f"{b_avg_d:.1f}"
+            if w_avg_t is not None:
+                game.headers["WhiteAvgMoveTime"] = f"{w_avg_t:.3f}s"
+            if b_avg_t is not None:
+                game.headers["BlackAvgMoveTime"] = f"{b_avg_t:.3f}s"
+            game.headers["Annotator"] = "chess-ds telemetry engine"
+
+            # Serialize full game PGN string
+            game_pgn_str = str(game)
+
             games_records.append(
                 {
                     "game_id": f"{match_id}_g{game_idx}",
@@ -199,7 +265,12 @@ def ingest_match_pgn(
                     "black_engine_id": black_id,
                     "result": result,
                     "total_plies": plies,
+                    "white_avg_depth": w_avg_d,
+                    "black_avg_depth": b_avg_d,
+                    "white_avg_movetime_sec": w_avg_t,
+                    "black_avg_movetime_sec": b_avg_t,
                     "termination": termination,
+                    "moves_pgn": game_pgn_str,
                     "played_at": end_time_str or datetime.now(timezone.utc).isoformat(),
                 }
             )
@@ -218,7 +289,7 @@ def ingest_match_pgn(
             "engine1_score": float(e1_score),
             "engine2_score": float(e2_score),
             "draws": int(draws),
-            "pgn_path": str(enriched_pgn_path),
+            "pgn_path": f"db://engine_match_games_{match_id}.parquet",
             "started_at": started_at or now_iso,
             "completed_at": completed_at or now_iso,
         }
@@ -233,7 +304,14 @@ def ingest_match_pgn(
     df_matches.write_parquet(matches_parquet)
     df_games.write_parquet(games_parquet)
 
-    return matches_parquet, games_parquet, enriched_pgn_path
+    # Clean up temporary raw PGN if requested
+    if remove_raw_pgn and pgn_path.exists():
+        try:
+            pgn_path.unlink()
+        except OSError:
+            pass
+
+    return matches_parquet, games_parquet
 
 
 if __name__ == "__main__":
@@ -246,7 +324,6 @@ if __name__ == "__main__":
         eng2 = sys.argv[4]
         tc = sys.argv[5]
         rounds = int(sys.argv[6])
-        m_p, g_p, e_p = ingest_match_pgn(pgn, m_id, eng1, eng2, tc, rounds)
+        m_p, g_p = ingest_match_pgn(pgn, m_id, eng1, eng2, tc, rounds)
         print(f"✓ Ingested Match into Parquet DB: {m_p}")
         print(f"✓ Ingested Match Games into Parquet DB: {g_p}")
-        print(f"✓ Enriched PGN with Telemetry Headers: {e_p}")

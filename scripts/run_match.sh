@@ -45,7 +45,7 @@ fi
 # Output paths
 MATCH_DIR="data/results/matches"
 mkdir -p "${MATCH_DIR}"
-PGN_OUT="${MATCH_DIR}/${MATCH_ID}.pgn"
+TEMP_PGN="/tmp/${MATCH_ID}_raw.pgn"
 TELEMETRY_LOG="${MATCH_DIR}/${MATCH_ID}_telemetry.log"
 OPENING_EPD="${MATCH_DIR}/${MATCH_ID}_opening.epd"
 echo "${START_FEN}" > "${OPENING_EPD}"
@@ -85,8 +85,8 @@ echo "  Time Control:   ${TC}"
 echo "  Starting FEN:   ${START_FEN}"
 echo "  Engine 1:       ${ENG1_KEY}"
 echo "  Engine 2:       ${ENG2_KEY}"
-echo "  PGN Target:     ${PGN_OUT}"
 echo "  Telemetry Log:  ${TELEMETRY_LOG}"
+echo "  Database Target:data/results/matches/engine_matches_${MATCH_ID}.parquet"
 echo "================================================================="
 
 # Start Telemetry Log Header
@@ -114,7 +114,7 @@ echo "================================================================="
   -recover \
   -draw movenumber=40 movecount=5 score=10 \
   -resign movecount=3 score=600 \
-  -pgnout "${PGN_OUT}" \
+  -pgnout "${TEMP_PGN}" \
   | tee -a "${TELEMETRY_LOG}"
 
 # Extract and parse match results from PGN in Win-Draw-Loss (+W =D -L) order
@@ -149,21 +149,21 @@ read -r WINS_E1 DRAWS_E1 LOSS_E1 WINS_E2 DRAWS_E2 LOSS_E2 < <(
     END {
       print w1, d1, l1, w2, d2, l2;
     }
-  ' "${PGN_OUT}"
+  ' "${TEMP_PGN}"
 )
 
 # Append Completed Timestamp and Win-Draw-Loss Summary to Telemetry
 {
   echo "--- MATCH COMPLETED ---"
   echo "COMPLETED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-  echo "PGN_PATH=${PGN_OUT}"
+  echo "DATABASE_TABLES=engine_matches_${MATCH_ID}.parquet, engine_match_games_${MATCH_ID}.parquet"
   echo "SUMMARY_FORMAT=Win-Draw-Loss (W - D - L)"
   echo "${ENG1_KEY}_SCORE: +${WINS_E1} =${DRAWS_E1} -${LOSS_E1} (${WINS_E1}W-${DRAWS_E1}D-${LOSS_E1}L)"
   echo "${ENG2_KEY}_SCORE: +${WINS_E2} =${DRAWS_E2} -${LOSS_E2} (${WINS_E2}W-${DRAWS_E2}D-${LOSS_E2}L)"
 } >> "${TELEMETRY_LOG}"
 
-# Automatically Ingest Match and Games into 3NF Parquet Database Tables
-"${REPO_ROOT}/.venv/bin/python" -m chess_ds.match_ingest "${PGN_OUT}" "${MATCH_ID}" "${ENG1_KEY}" "${ENG2_KEY}" "${TC}" "${ROUNDS}" || true
+# Automatically Ingest Match and Games into 3NF Parquet Database Tables & clean temp PGN
+"${REPO_ROOT}/.venv/bin/python" -m chess_ds.match_ingest "${TEMP_PGN}" "${MATCH_ID}" "${ENG1_KEY}" "${ENG2_KEY}" "${TC}" "${ROUNDS}" || true
 
 echo ""
 echo "================================================================="
@@ -172,7 +172,7 @@ echo "  ${ENG1_KEY}:  +${WINS_E1} =${DRAWS_E1} -${LOSS_E1}  (${WINS_E1}W - ${DRA
 echo "  ${ENG2_KEY}:  +${WINS_E2} =${DRAWS_E2} -${LOSS_E2}  (${WINS_E2}W - ${DRAWS_E2}D - ${LOSS_E2}L)"
 echo "================================================================="
 echo "✓ Match ${MATCH_ID} successfully completed!"
-echo "✓ Games PGN recorded in:        ${PGN_OUT}"
 echo "✓ Match telemetry logged to:    ${TELEMETRY_LOG}"
 echo "✓ 3NF Tables saved to DB:       data/results/matches/engine_matches_${MATCH_ID}.parquet"
 echo "                                data/results/matches/engine_match_games_${MATCH_ID}.parquet"
+echo "  (To export PGN on-demand: uv run python -m chess_ds.cli export-pgn --match-id ${MATCH_ID})"

@@ -95,19 +95,25 @@ def main():
     # Export Enriched PGN command
     export_pgn_parser = subparsers.add_parser(
         "export-pgn",
-        help="Enrich and export engine match PGNs with average depth and timing telemetry headers",
+        help="Export and reconstruct annotated PGN files directly from database match tables",
+    )
+    export_pgn_parser.add_argument(
+        "--match-id",
+        type=str,
+        default=None,
+        help="Match ID to export from Parquet database (e.g. match_20260820_220029)",
     )
     export_pgn_parser.add_argument(
         "--input",
         type=str,
-        required=True,
-        help="Input raw match PGN file path",
+        default=None,
+        help="Input raw match PGN file path (alternative to --match-id)",
     )
     export_pgn_parser.add_argument(
         "--output",
         type=str,
         default=None,
-        help="Output annotated PGN file path (optional)",
+        help="Output annotated PGN file path (defaults to data/results/matches/<match_id>.pgn)",
     )
 
     args = parser.parse_args()
@@ -136,40 +142,50 @@ def main():
 
         TelemetryDashboard.print_banner(
             f"chess-ds Benchmark: {runner.run_id}",
-            f"Search: {runner.movetime_ms}ms/pos | Total: {runner.total_puzzles:,} | Concurrency: {runner.concurrency}",
+            f"Search: {runner.movetime_ms}ms/pos | Total: {runner.total_puzzles} | Concurrency: {runner.concurrency}",
         )
 
-        shards = sorted(SHARDS_DIR.glob("*.parquet"))
+        from chess_ds.fetcher import DATA_DIR
+        shards = sorted(DATA_DIR.glob("lichess_shard_*.parquet"))
         if not shards:
-            print(
-                "No shards found. Streaming fresh ultra-hard puzzles live from official Lichess repository..."
-            )
-            shards = LichessFetcher.build_live_parquet_shards(
-                min_rating=2500, total_puzzles=runner.total_puzzles, shard_size=1000
-            )
+            print("No puzzle shards found. Run `chess_ds fetch` first.")
+            return
 
         runner.run_suite(
             shards,
-            engines=runner.engines,
+            engine_names=runner.engines,
             concurrency=runner.concurrency,
             total_limit=runner.total_puzzles,
         )
 
     elif args.command == "summary":
         TelemetryDashboard.print_banner("chess-ds Analytics Dashboard", "Zero-Copy Parquet Rollup")
-        TelemetryDashboard.render_results_summary()
+        runner = ResumableBenchmarkRunner()
+        runner.generate_analytics_summary()
 
     elif args.command == "export-csv":
+        out_path = Path(args.output)
         TelemetryDashboard.print_banner("chess-ds Query Exporter", f"Exporting to {args.output}")
         ResumableBenchmarkRunner.export_csv_from_query(args.query, Path(args.output))
 
     elif args.command == "export-pgn":
-        from chess_ds.match_ingest import enrich_and_export_pgn
+        from chess_ds.match_ingest import enrich_and_export_pgn, export_pgn_from_db
 
-        in_p = Path(args.input)
-        out_p = Path(args.output) if args.output else None
-        res_p = enrich_and_export_pgn(in_p, out_p)
-        print(f"✓ Enriched PGN with engine telemetry exported to: {res_p}")
+        if args.match_id:
+            out_p = (
+                Path(args.output)
+                if args.output
+                else Path(f"data/results/matches/{args.match_id}.pgn")
+            )
+            res_p = export_pgn_from_db(args.match_id, out_p)
+            print(f"✓ Reconstructed and exported PGN from database to: {res_p}")
+        elif args.input:
+            in_p = Path(args.input)
+            out_p = Path(args.output) if args.output else None
+            res_p = enrich_and_export_pgn(in_p, out_p)
+            print(f"✓ Enriched PGN with engine telemetry exported to: {res_p}")
+        else:
+            print("Please specify either --match-id <id> or --input <pgn_path>.")
 
 
 if __name__ == "__main__":

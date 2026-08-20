@@ -147,15 +147,20 @@ CREATE TABLE IF NOT EXISTS engine_matches (
 );
 
 CREATE TABLE IF NOT EXISTS engine_match_games (
-    game_id           VARCHAR PRIMARY KEY,    -- e.g. 'match_20260820_131500_g1'
-    match_id          VARCHAR NOT NULL REFERENCES engine_matches(match_id),
-    round_number      INTEGER NOT NULL,
-    white_engine_id   VARCHAR NOT NULL REFERENCES engines(engine_id),
-    black_engine_id   VARCHAR NOT NULL REFERENCES engines(engine_id),
-    result            VARCHAR(7) NOT NULL,    -- '1-0', '0-1', '1/2-1/2', '*'
-    total_plies       INTEGER NOT NULL,
-    termination       VARCHAR,                -- 'Adjudication', 'Checkmate', 'Time forfeit'
-    played_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    game_id                VARCHAR PRIMARY KEY,    -- e.g. 'match_20260820_131500_g1'
+    match_id               VARCHAR NOT NULL REFERENCES engine_matches(match_id),
+    round_number           INTEGER NOT NULL,
+    white_engine_id        VARCHAR NOT NULL REFERENCES engines(engine_id),
+    black_engine_id        VARCHAR NOT NULL REFERENCES engines(engine_id),
+    result                 VARCHAR(7) NOT NULL,    -- '1-0', '0-1', '1/2-1/2', '*'
+    total_plies            INTEGER NOT NULL,
+    white_avg_depth        DOUBLE,
+    black_avg_depth        DOUBLE,
+    white_avg_movetime_sec DOUBLE,
+    black_avg_movetime_sec DOUBLE,
+    termination            VARCHAR,                -- 'Adjudication', 'Checkmate', 'Time forfeit'
+    moves_pgn              TEXT,
+    played_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- -----------------------------------------------------------------------------
