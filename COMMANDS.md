@@ -115,6 +115,7 @@ ______________________________________________________________________
 
 ### Run 10-game match: Lc0 vs Reckless 0.9.0
 
+```bash
 ./engines/cutechess-cli \
 -engine name=Lc0 cmd=./engines/lc0 dir=./engines option.WeightsFile=./weights/BT4-332.pb option.Threads=2 option.SyzygyPath=./syzygy \
 -engine name=Stockfish18 cmd=./engines/stockfish-ubuntu-x86-64-avx512icl dir=./engines option.Threads=8 option.Hash=8192 option.SyzygyPath=./syzygy \
@@ -126,19 +127,4 @@ ______________________________________________________________________
 -resign movecount=4 score=700 \
 -pgnout ./data/results/match_lc0_vs_sf.pgn
 
-````
-
-### Run 10-game match: Lc0 vs Reckless 0.9.0
-
-```bash
-./engines/cutechess-cli \
-  -engine name=Lc0 cmd=./engines/lc0 dir=./engines option.WeightsFile=./weights/BT4-332.pb option.Threads=2 option.SyzygyPath=./syzygy \
-  -engine name=Reckless cmd=./engines/reckless-linux-avx512 dir=./engines option.Threads=8 option.Hash=8192 option.SyzygyPath=./syzygy \
-  -each proto=uci tc=10+0.2 \
-  -rounds 10 \
-  -repeat \
-  -concurrency 1 \
-  -draw movenumber=40 movecount=8 score=10 \
-  -resign movecount=4 score=700 \
-  -pgnout ./data/results/match_lc0_vs_reckless.pgn
-````
+```
