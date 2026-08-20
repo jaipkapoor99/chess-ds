@@ -162,6 +162,9 @@ read -r WINS_E1 DRAWS_E1 LOSS_E1 WINS_E2 DRAWS_E2 LOSS_E2 < <(
   echo "${ENG2_KEY}_SCORE: +${WINS_E2} =${DRAWS_E2} -${LOSS_E2} (${WINS_E2}W-${DRAWS_E2}D-${LOSS_E2}L)"
 } >> "${TELEMETRY_LOG}"
 
+# Automatically Ingest Match and Games into 3NF Parquet Database Tables
+"${REPO_ROOT}/.venv/bin/python" -m chess_ds.match_ingest "${PGN_OUT}" "${MATCH_ID}" "${ENG1_KEY}" "${ENG2_KEY}" "${TC}" "${ROUNDS}" || true
+
 echo ""
 echo "================================================================="
 echo "  MATCH FINISHED: WIN - DRAW - LOSS SUMMARY"
@@ -169,5 +172,7 @@ echo "  ${ENG1_KEY}:  +${WINS_E1} =${DRAWS_E1} -${LOSS_E1}  (${WINS_E1}W - ${DRA
 echo "  ${ENG2_KEY}:  +${WINS_E2} =${DRAWS_E2} -${LOSS_E2}  (${WINS_E2}W - ${DRAWS_E2}D - ${LOSS_E2}L)"
 echo "================================================================="
 echo "✓ Match ${MATCH_ID} successfully completed!"
-echo "✓ Games PGN recorded in:     ${PGN_OUT}"
-echo "✓ Match telemetry logged to: ${TELEMETRY_LOG}"
+echo "✓ Games PGN recorded in:        ${PGN_OUT}"
+echo "✓ Match telemetry logged to:    ${TELEMETRY_LOG}"
+echo "✓ 3NF Tables saved to DB:       data/results/matches/engine_matches_${MATCH_ID}.parquet"
+echo "                                data/results/matches/engine_match_games_${MATCH_ID}.parquet"
