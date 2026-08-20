@@ -21,4 +21,4 @@ wandb/
 *.parquet
 *.parquet.zst
 *.csv
-*.pgn
+*.pgnbooks/

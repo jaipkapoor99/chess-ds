@@ -18,7 +18,7 @@ cd "${REPO_ROOT}"
 ROUNDS="${1:-10}"
 TC="${2:-10+0.1}"
 DEFAULT_START_FEN="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-START_FEN="${3:-${DEFAULT_START_FEN}}"
+START_ARG="${3:-books/Drawkiller_balanced_big.epd}"
 ENG1_KEY="${4:-lc0}"
 ENG2_KEY="${5:-reckless}"
 MATCH_TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
@@ -33,22 +33,27 @@ if (( ROUNDS % 2 != 0 )); then
   echo ""
 fi
 
-# Starting position warning
-if [[ "${START_FEN}" == "${DEFAULT_START_FEN}" ]]; then
-  echo "⚠️  [WARNING] Using default starting FEN (standard starting position)!"
-  echo "    Playing engine matches from the standard starting board is not advisable"
-  echo "    because deterministic top engines frequently repeat identical draw lines."
-  echo "    Supplying varied opening FENs or a balanced opening book is strongly recommended."
-  echo ""
-fi
-
 # Output paths
 MATCH_DIR="data/results/matches"
 mkdir -p "${MATCH_DIR}"
 TEMP_PGN="/tmp/${MATCH_ID}_raw.pgn"
 TELEMETRY_LOG="${MATCH_DIR}/${MATCH_ID}_telemetry.log"
-OPENING_EPD="${MATCH_DIR}/${MATCH_ID}_opening.epd"
-echo "${START_FEN}" > "${OPENING_EPD}"
+
+# Opening Book / FEN Configuration
+OPENING_FORMAT="epd"
+OPENING_ORDER="random"
+if [[ -f "${START_ARG}" ]]; then
+  OPENING_FILE="${START_ARG}"
+  if [[ "${START_ARG}" == *.pgn ]]; then
+    OPENING_FORMAT="pgn"
+  fi
+  START_DESC="Opening Book (${START_ARG})"
+else
+  OPENING_FILE="${MATCH_DIR}/${MATCH_ID}_opening.epd"
+  echo "${START_ARG}" > "${OPENING_FILE}"
+  OPENING_ORDER="sequential"
+  START_DESC="Custom FEN (${START_ARG})"
+fi
 
 # Engine Binaries & Configurations
 CUTECHESS="./engines/cutechess-cli"
@@ -82,7 +87,7 @@ echo "  STARTING ENGINE VS ENGINE HEAD-TO-HEAD MATCH (2 ENGINES)"
 echo "  Match ID:       ${MATCH_ID}"
 echo "  Rounds:         ${ROUNDS} games (repeat each opening)"
 echo "  Time Control:   ${TC}"
-echo "  Starting FEN:   ${START_FEN}"
+echo "  Opening:        ${START_DESC}"
 echo "  Engine 1:       ${ENG1_KEY}"
 echo "  Engine 2:       ${ENG2_KEY}"
 echo "  Telemetry Log:  ${TELEMETRY_LOG}"
@@ -97,7 +102,7 @@ echo "================================================================="
   echo "ENGINE2=${ENG2_KEY}"
   echo "TOTAL_GAMES=${ROUNDS}"
   echo "TIME_CONTROL=${TC}"
-  echo "STARTING_FEN=${START_FEN}"
+  echo "OPENING=${START_DESC}"
   echo "--- LIVE MATCH TELEMETRY ---"
 } > "${TELEMETRY_LOG}"
 
@@ -106,7 +111,7 @@ echo "================================================================="
   -engine ${ENG1_ARGS} \
   -engine ${ENG2_ARGS} \
   -each proto=uci tc="${TC}" \
-  -openings file="${OPENING_EPD}" format=epd \
+  -openings file="${OPENING_FILE}" format="${OPENING_FORMAT}" order="${OPENING_ORDER}" \
   -rounds "$(( ROUNDS / 2 ))" \
   -games 2 \
   -repeat \
