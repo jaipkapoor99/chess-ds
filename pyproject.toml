@@ -24,6 +24,7 @@ dependencies = [
     "mdformat-frontmatter>=2.1.2",
     "types-tqdm>=4.66.0",
     "rich>=15.0.0",
+    "wandb>=0.28.2",
 ]
 
 [build-system]

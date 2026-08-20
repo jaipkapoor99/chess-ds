@@ -1,5 +1,6 @@
 """Dedicated Rich Telemetry and Analytical Dashboard for chess-ds."""
 
+import os
 from pathlib import Path
 
 import duckdb
@@ -12,6 +13,70 @@ from rich.text import Text
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 RESULTS_DIR = ROOT_DIR / "data" / "results"
 console = Console()
+
+
+class WandbLogger:
+    """Manages Weights & Biases experiment tracking, metric logging, and table sync."""
+
+    def __init__(
+        self,
+        project_name: str = "chess-ds",
+        run_name: str | None = None,
+        config: dict | None = None,
+        offline: bool = False,
+    ):
+        self.enabled = False
+        try:
+            import wandb
+
+            mode = "offline" if offline or not os.environ.get("WANDB_API_KEY") else "online"
+            self.run = wandb.init(
+                project=project_name,
+                name=run_name,
+                config=config or {},
+                mode=mode,
+            )
+            self.enabled = True
+            console.print(
+                f"[bold cyan]Weights & Biases initialized[/bold cyan] in [bold green]{mode}[/bold green] mode."
+            )
+        except Exception as e:
+            console.print(f"[dim yellow]WandB init bypassed ({e})[/dim yellow]")
+
+    def log_position_metrics(
+        self,
+        engine: str,
+        index: int,
+        is_correct: bool,
+        running_accuracy: float,
+        depth: int,
+        nps: float,
+        elapsed: float,
+        rating: int,
+    ) -> None:
+        """Logs real-time single-position metrics to WandB."""
+        if not self.enabled:
+            return
+        import wandb
+
+        wandb.log(
+            {
+                f"{engine}/running_accuracy_pct": running_accuracy,
+                f"{engine}/depth": depth,
+                f"{engine}/nps": nps,
+                f"{engine}/elapsed_seconds": elapsed,
+                f"{engine}/puzzle_rating": rating,
+                f"{engine}/solved_binary": 1 if is_correct else 0,
+                "global_position_step": index,
+            }
+        )
+
+    def finish(self) -> None:
+        """Closes WandB run session."""
+        if self.enabled:
+            import wandb
+
+            wandb.finish()
 
 
 class TelemetryDashboard:

@@ -19,6 +19,8 @@ data/*.pgn
 logs/
 *.log
 uv.lock
+wandb/
+.wandb/
 
 # Keep data/results tracked for open science and zero-setup analytics
 !data/results/

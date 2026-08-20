@@ -42,6 +42,17 @@ def main():
         default=["Lc0 v0.32.1", "Reckless 0.9.0", "Stockfish 18"],
         help="Engines to test",
     )
+    run_parser.add_argument(
+        "--wandb",
+        action="store_true",
+        help="Enable live Weights & Biases telemetry logging",
+    )
+    run_parser.add_argument(
+        "--wandb-project",
+        type=str,
+        default="chess-ds",
+        help="Weights & Biases project name (default: chess-ds)",
+    )
 
     # Summary command
     subparsers.add_parser(
@@ -91,7 +102,11 @@ def main():
                 min_rating=2500, total_puzzles=5000, shard_size=1000
             )
 
-        runner = ResumableBenchmarkRunner(movetime_ms=args.movetime)
+        runner = ResumableBenchmarkRunner(
+            movetime_ms=args.movetime,
+            use_wandb=args.wandb,
+            wandb_project=args.wandb_project,
+        )
         runner.run_suite(shards, engines=args.engines)
 
     elif args.command == "summary":

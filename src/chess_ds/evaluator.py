@@ -27,9 +27,24 @@ CHECKPOINTS_DIR = DATA_DIR / "checkpoints"
 class ResumableBenchmarkRunner:
     """Orchestrates multi-engine evaluation across Parquet shards with state checkpointing."""
 
-    def __init__(self, movetime_ms: int = 500, run_id: str | None = None):
+    def __init__(
+        self,
+        movetime_ms: int = 500,
+        run_id: str | None = None,
+        use_wandb: bool = False,
+        wandb_project: str = "chess-ds",
+    ):
         self.movetime_ms = movetime_ms
         self.timestamp = run_id or time.strftime("%Y%m%d_%H%M%S")
+        self.use_wandb = use_wandb
+        self.wandb_logger = None
+        if self.use_wandb:
+            from chess_ds.telemetry import WandbLogger
+
+            self.wandb_logger = WandbLogger(
+                project_name=wandb_project, run_name=f"benchmark_{self.timestamp}"
+            )
+
         RESULTS_DIR.mkdir(parents=True, exist_ok=True)
         CHECKPOINTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -128,6 +143,18 @@ class ResumableBenchmarkRunner:
             )
             pbar.update(1)
 
+            if self.wandb_logger:
+                self.wandb_logger.log_position_metrics(
+                    engine=engine_name,
+                    index=i + 1,
+                    is_correct=is_correct,
+                    running_accuracy=acc,
+                    depth=depth,
+                    nps=nps,
+                    elapsed=elapsed,
+                    rating=rating,
+                )
+
             # Checkpoint every 50 positions
             if (i + 1) % 50 == 0 or (i + 1) == total_puzzles:
                 with open(ckpt_path, "w") as f:
@@ -167,6 +194,9 @@ class ResumableBenchmarkRunner:
         for engine in engines:
             for shard in shards:
                 self.evaluate_shard_with_engine(engine, shard)
+
+        if self.wandb_logger:
+            self.wandb_logger.finish()
 
         self.generate_analytics_summary()
 
