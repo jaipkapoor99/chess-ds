@@ -1,7 +1,10 @@
 # `chess-ds`: Pedagogical Chess Data Science & Engine Analytics Platform
 
 > [!NOTE]
-> **Pedagogical Purpose**: This repository is designed as a pedagogical research platform demonstrating modern chess data science, high-performance engine benchmarking, neural network vs. alpha-beta search paradigms, and distributed data pipelines.
+> **Pedagogical Purpose**: This repository is designed as an educational, pedagogical research platform demonstrating modern chess data science, high-performance engine benchmarking, neural network vs. alpha-beta search paradigms, and distributed data pipelines.
+
+> [!IMPORTANT]
+> **Benchmarking Scripts Note**: Exact one-size-fits-all benchmarking scripts are deliberately not hardcoded because evaluation workflows vary significantly based on hardware topography (GPU tensor batching vs. multi-threaded CPU AVX-512 allocations), time controls, endgame tablebase lookups, and concurrency constraints. Instead, modular orchestrators and CLI templates are provided.
 
 ______________________________________________________________________
 

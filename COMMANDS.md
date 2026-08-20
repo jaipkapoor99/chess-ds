@@ -2,6 +2,9 @@
 
 This document provides clean, repository-relative terminal commands for operating the `chess-ds` platform.
 
+> [!NOTE]
+> **Benchmarking Script Flexibility**: Exact evaluation and benchmarking scripts vary widely depending on user hardware topologies (CUDA GPU Tensor Core allocations vs. AVX-512 CPU thread counts), search budgets, and concurrency schedules. The commands below provide flexible CLI primitives and modular patterns that can be tailored to any benchmarking experiment.
+
 ______________________________________________________________________
 
 ## 1. Environment & Setup
