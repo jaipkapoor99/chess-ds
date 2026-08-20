@@ -4,6 +4,7 @@ import argparse
 
 from chess_ds.evaluator import ResumableBenchmarkRunner
 from chess_ds.fetcher import SHARDS_DIR, LichessFetcher
+from chess_ds.telemetry import TelemetryDashboard
 
 
 def main():
@@ -49,6 +50,9 @@ def main():
     args = parser.parse_args()
 
     if args.command == "fetch":
+        TelemetryDashboard.print_banner(
+            "chess-ds Ingestion Pipeline", "Streaming from database.lichess.org"
+        )
         LichessFetcher.build_live_parquet_shards(
             min_rating=args.min_rating,
             popularity_min=args.popularity,
@@ -57,6 +61,9 @@ def main():
         )
 
     elif args.command == "eval":
+        TelemetryDashboard.print_banner(
+            "chess-ds Multi-Engine Benchmark", f"Search Budget: {args.movetime}ms/pos"
+        )
         shards = sorted(SHARDS_DIR.glob("*.parquet"))
         if not shards:
             print(
@@ -70,8 +77,8 @@ def main():
         runner.run_suite(shards, engines=args.engines)
 
     elif args.command == "summary":
-        runner = ResumableBenchmarkRunner()
-        runner.generate_analytics_summary()
+        TelemetryDashboard.print_banner("chess-ds Analytics Dashboard", "Zero-Copy Parquet Rollup")
+        TelemetryDashboard.render_results_summary()
 
 
 if __name__ == "__main__":

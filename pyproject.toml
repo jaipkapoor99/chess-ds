@@ -23,6 +23,7 @@ dependencies = [
     "mdformat-gfm>=1.0.0",
     "mdformat-frontmatter>=2.1.2",
     "types-tqdm>=4.66.0",
+    "rich>=15.0.0",
 ]
 
 [build-system]
