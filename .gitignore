@@ -1,0 +1,19 @@
+# Python virtual environments and caches
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+
+# Binary executables and large weights
+engines/
+weights/*.pb
+weights/*.onnx
+weights/*.bin
+
+# Data and logs
+data/*.csv
+data/*.pgn
+logs/
+*.log
