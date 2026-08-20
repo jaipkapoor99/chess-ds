@@ -5,28 +5,32 @@
 > [!IMPORTANT]
 > **Benchmarking Scripts Note**: Exact one-size-fits-all benchmarking scripts are deliberately not hardcoded because evaluation workflows vary significantly based on hardware topography (GPU tensor batching vs. multi-threaded CPU AVX-512 allocations), time controls, endgame tablebase lookups, and concurrency constraints. Instead, modular orchestrators and CLI templates are provided.
 
----
+______________________________________________________________________
 
 ## 1. Core Architecture & Concepts Demonstrated
 
 1. **Neural MCTS vs. Alpha-Beta Evaluation**:
+
    - **Leela Chess Zero ([`Lc0`](https://github.com/LeelaChessZero/lc0))**: GPU-accelerated Monte Carlo Tree Search (MCTS) utilizing deep Policy-Value Transformer neural networks (`BT4-332.pb`) running on Tensor Cores.
    - **Stockfish ([`Stockfish`](https://github.com/official-stockfish/Stockfish))**: Highly optimized CPU Alpha-Beta search engine powered by AVX-512 NNUE evaluation.
    - **Reckless ([`Reckless`](https://github.com/lucasart/reckless))**: High-performance open-source UCI chess engine featuring advanced NNUE and search pruning techniques.
    - **Cutechess ([`cutechess`](https://github.com/cutechess/cutechess))**: Tournament arbiter and CLI interface for engine matches.
 
 1. **Large-Scale Data Engineering**:
+
    - **Live Zstandard Streaming**: Direct decompression and on-the-fly filtering of the multi-million puzzle/game database from `database.lichess.org` over HTTP without saving massive intermediate uncompressed files.
    - **Columnar Storage (Parquet / Arrow)**: Partitioned, compressed shards optimized for zero-copy queries.
    - **DuckDB Analytics**: Embedded analytical SQL queries for calculating engine agreement, solve accuracy, Average Centipawn Loss (ACPL), and depth distributions.
 
 1. **Fault-Tolerant Resumable Execution**:
+
    - Automated checkpointing every 50 positions to allow interrupted benchmarks to resume immediately without duplicate computation.
 
 1. **Tablebase Synergy**:
+
    - Integrated Syzygy 6-piece endgame tablebase probing (`.rtbw` / `.rtbz`).
 
----
+______________________________________________________________________
 
 ## 2. Quick Start
 
@@ -73,17 +77,29 @@ uv run python -m chess_ds.cli export-csv \
   --output data/results/summary_export.csv
 ```
 
----
+______________________________________________________________________
 
 ## 3. Storage Architecture: Database-First & Manual Export
 
-- **Automatic Database Ingestion**: All engine evaluations, lookahead depths, and telemetry are stored automatically in compressed columnar **Apache Arrow / Parquet database tables** (`data/results/eval_*.parquet`) stamped with UTC ISO timestamps.
-- **Manual CSV Generation**: Raw CSV files are never dumped automatically. CSV files are generated strictly on-demand as the output of targeted SQL queries via `chess_ds.cli export-csv`.
-- **Live Observability**: Optional real-time experiment tracking with Weights & Biases via `--wandb`.
+- **Automatic Database Ingestion**: All engine evaluations, lookahead depths, SAN notations, and telemetry are stored automatically in compressed columnar **Apache Arrow / Parquet database tables** (`data/results/eval_*.parquet`) stamped with UTC ISO timestamps.
+- **Manual CSV Generation**: Raw CSV files are never dumped automatically during benchmarks. CSV files are generated strictly on-demand as the output of targeted SQL queries via `chess_ds.cli export-csv`.
+- **Live Observability**: Real-time experiment tracking with Weights & Biases (online cloud streaming by default, `--no-wandb` to bypass).
+- **Engine Matches**: Head-to-head 2-engine tournament execution via `cutechess-cli` and `./scripts/run_match.sh` with dedicated telemetry logs.
+- **Data Policy**: Binary datasets, shards, and checkpoints are kept local and excluded from git tracking.
 
----
+______________________________________________________________________
 
-## 4. Code Quality & Tooling
+## 4. Database Schema (Strict 3NF)
+
+The relational database model follows strict Third Normal Form ($3\\text{NF}$) with zero transitive functional dependencies:
+
+- **Entities**: `players`, `openings`, `engines`, `themes`, `benchmark_runs`, `engine_matches`.
+- **Normalized Relations**: `puzzles`, `puzzle_themes` (bridge), `puzzle_evaluations` (composite telemetry), `games`, `game_moves`, `engine_match_games`.
+- Formal DDL defined in \[`src/chess_ds/schema.sql`\](file:///home/jaipkapoor99/Code/chess-ds/src/chess_ds/schema.sql) and mapped in \[`SCHEMA.md`\](file:///home/jaipkapoor99/Code/chess-ds/SCHEMA.md).
+
+______________________________________________________________________
+
+## 5. Code Quality & Tooling
 
 - **Python Linter & Formatter**: `ruff`
 - **Markdown Formatter**: `mdformat`
