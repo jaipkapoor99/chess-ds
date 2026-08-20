@@ -19,6 +19,9 @@ dependencies = [
     "ruff>=0.5.0",
     "zstandard>=0.25.0",
     "pyrefly>=0.1.0",
+    "mdformat>=1.0.0",
+    "mdformat-gfm>=1.0.0",
+    "mdformat-frontmatter>=2.1.2",
 ]
 
 [build-system]
@@ -51,3 +54,7 @@ known-first-party = ["chess_ds"]
 [tool.pyrefly]
 mode = "standard"
 strictness = "reasonable"
+
+[tool.mdformat]
+wrap = "no"
+number = true
